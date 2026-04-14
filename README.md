@@ -397,17 +397,74 @@ supabase.auth.onAuthStateChange(async (event, session) => {
 })
 ```
 
+**3-way routing logic (new in Session 02):**
+
+```ts
+const handleAuthChange = async (session: Session | null) => {
+  if (!session) {
+    // No session → login screen
+    router.replace('/(auth)/login')
+    return
+  }
+  // Session exists — but have they set up their family yet?
+  const hasFamily = await userHasFamily()
+  if (!hasFamily) {
+    // Brand new user → force through registration
+    router.replace('/(auth)/register')
+  } else {
+    // Returning user → straight to the app
+    router.replace('/(app)/')
+  }
+}
+```
+
+Also runs on mount via `supabase.auth.getSession()` to handle app restarts with a stored AsyncStorage session.
+
 **Why `replace` not `push`:** `replace` swaps the current screen rather than stacking it. The user can't press Back to return to the login screen after logging in.
 
 ---
 
 ### `app/(auth)/login.tsx` & `register.tsx`
 
-**What it does (Session 02 will build the full version):** Phone OTP login and family registration screens.
+**What they do:** Phone OTP login (2-step) and 3-page family registration form.
 
-**Planned logic:**
-- `login.tsx` — phone number input → Supabase sends OTP via SMS → user enters 6-digit code → session created
-- `register.tsx` — appears only for new users. Collects: family name, user's name, relation, date of birth, blood group, known allergies → creates `families` row + `family_members` row in one transaction
+**Login flow — 2-step state machine:**
+
+```ts
+// Step 1 — Send OTP
+// Always normalises to E.164 format (+91XXXXXXXXXX) before calling Supabase
+await sendPhoneOtp(phone)   // lib/api.ts → supabase.auth.signInWithOtp()
+
+// Step 2 — Verify OTP
+await verifyPhoneOtp(phone, otp)   // supabase.auth.verifyOtp()
+
+// After successful verify — branch on whether user already has a family
+const hasFamily = await userHasFamily()
+hasFamily ? router.replace('/(app)/') : router.replace('/(auth)/register')
+```
+
+**Registration — 3-page form:**
+- Page 1: Family name + user's own name + relation chip picker
+- Page 2: Date of birth (auto-formatted DD/MM/YYYY) + blood group grid + phone number
+- Page 3: Allergy chips (add/remove) + summary card + final submit
+
+```ts
+// All three pages submit in one atomic operation:
+await registerFamilyAndFirstMember({
+  familyName, memberName, relation,
+  dateOfBirth: parseDob(dob),    // converts DD/MM/YYYY → YYYY-MM-DD
+  bloodGroup, knownAllergies,
+  phone, pushToken,              // push token captured here for future notifications
+})
+// Creates: families row → family_members row (is_admin: true)
+```
+
+**UX details:**
+- Resend OTP button has a 30-second cooldown to prevent SMS spam
+- Register screen has `gestureEnabled: false` — users cannot swipe back mid-setup
+- Date of birth auto-inserts `/` separators as the user types
+- Blood group selection turns red to match its emergency card appearance
+- Allergy chips are removable by tapping them
 
 ---
 
@@ -904,8 +961,8 @@ npm start
 | Session | Feature | Status |
 |---------|---------|--------|
 | 01 | Project Setup + Types + Schema | ✅ Done |
-| 02 | Auth Flow (Phone OTP) | ⏳ Next |
-| 03 | Family Dashboard Home Screen | ⏳ |
+| 02 | Auth Flow (Phone OTP) | ✅ Done |
+| 03 | Family Dashboard Home Screen | ⏳ Next |
 | 04 | Upload Flow (UI only) | ⏳ |
 | 05 | parse-report Edge Function | ⏳ |
 | 06 | Member Profile + Charts | ⏳ |

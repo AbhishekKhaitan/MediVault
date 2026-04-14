@@ -1,6 +1,95 @@
 // lib/api.ts — All DB calls, typed. No raw Supabase calls in components.
 import { supabase } from './supabase'
-import type { Family, FamilyMember, Document, HealthMetric, Medication, MedicationLog } from '../types'
+import type { Family, FamilyMember, Document, HealthMetric, Medication, MedicationLog, BloodGroup } from '../types'
+
+// ─── Auth helpers ─────────────────────────────────────────────────────────────
+
+// Send OTP to an Indian phone number. Always prefix with +91.
+export async function sendPhoneOtp(phone: string): Promise<void> {
+  const e164 = phone.startsWith('+') ? phone : `+91${phone.replace(/\D/g, '')}`
+  const { error } = await supabase.auth.signInWithOtp({ phone: e164 })
+  if (error) throw error
+}
+
+// Verify the 6-digit OTP the user received over SMS.
+export async function verifyPhoneOtp(phone: string, token: string): Promise<void> {
+  const e164 = phone.startsWith('+') ? phone : `+91${phone.replace(/\D/g, '')}`
+  const { error } = await supabase.auth.verifyOtp({
+    phone: e164,
+    token,
+    type: 'sms',
+  })
+  if (error) throw error
+}
+
+// Check whether the currently logged-in user already has a family member row.
+// Returns true  → existing user, go straight to (app)/
+// Returns false → new user, send to register screen to set up their family
+export async function userHasFamily(): Promise<boolean> {
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return false
+
+  const { data } = await supabase
+    .from('family_members')
+    .select('id')
+    .eq('user_id', user.id)
+    .maybeSingle()
+
+  return data !== null
+}
+
+// ─── Registration — create family + first member in one flow ─────────────────
+
+export interface RegisterPayload {
+  familyName: string
+  memberName: string
+  relation: string
+  dateOfBirth: string | null      // 'YYYY-MM-DD'
+  bloodGroup: BloodGroup | null
+  knownAllergies: string[]
+  phone: string
+  pushToken: string | null
+}
+
+export async function registerFamilyAndFirstMember(
+  payload: RegisterPayload
+): Promise<{ family: Family; member: FamilyMember }> {
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) throw new Error('Not authenticated')
+
+  // Step 1 — Create the family row
+  const { data: familyData, error: familyError } = await supabase
+    .from('families')
+    .insert({ name: payload.familyName, created_by: user.id })
+    .select()
+    .single()
+
+  if (familyError) throw familyError
+  const family = familyData as Family
+
+  // Step 2 — Create the first member (the person registering).
+  // is_admin = true because they created the family.
+  const { data: memberData, error: memberError } = await supabase
+    .from('family_members')
+    .insert({
+      family_id: family.id,
+      user_id: user.id,
+      name: payload.memberName,
+      relation: payload.relation,
+      date_of_birth: payload.dateOfBirth,
+      blood_group: payload.bloodGroup,
+      known_allergies: payload.knownAllergies,
+      phone: payload.phone,
+      is_admin: true,
+      emergency_access_enabled: true,
+    })
+    .select()
+    .single()
+
+  if (memberError) throw memberError
+
+  return { family, member: memberData as FamilyMember }
+}
 
 // ─── Families ────────────────────────────────────────────────────────────────
 
