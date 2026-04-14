@@ -484,9 +484,72 @@ await registerFamilyAndFirstMember({
 
 ---
 
-### `app/(app)/index.tsx`
+### `app/(app)/index.tsx` — Family Dashboard
 
-**What it does (Session 03 will build the full version):** Family dashboard — scrollable avatar grid of all family members, each showing their name, relation, and last document date. Floating action button navigates to Upload.
+**What it does:** The home screen. Fetches and displays all family members, today's medication compliance, and quick actions.
+
+**Key logic:**
+
+```ts
+// Greeting changes based on time of day — small touch that makes the app feel alive
+const hour = new Date().getHours()
+setGreeting(hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening')
+```
+
+```ts
+// Medication compliance dot logic — one of 4 states per member
+const getComplianceStatus = (memberId: string) => {
+  const logs = todaysLogs[memberId] ?? []
+  if (logs.length === 0) return 'unknown'  // no medications → no dot shown
+  const taken = logs.filter((l) => l.taken).length
+  if (taken === logs.length) return 'all'   // green dot
+  if (taken === 0) return 'none'            // red dot
+  return 'some'                             // amber dot
+}
+```
+
+```ts
+// Pull-to-refresh reloads the full family tree
+const onRefresh = useCallback(async () => {
+  setRefreshing(true)
+  await loadFamily()        // re-fetches family + all members
+  setRefreshing(false)
+}, [])
+```
+
+**Screens within the dashboard:**
+- Header with time-of-day greeting + sign-out button
+- Family plan status pill (free / active / upgrade prompt)
+- Horizontal avatar scroll with compliance dots
+- 3 quick action cards: Scan Report · Emergency · Trends
+- Today's medication summary list (only shown if any logs exist)
+- Floating `+` button → upload screen
+
+### `components/AddMemberSheet.tsx`
+
+**What it does:** Full-screen modal sheet for adding a new family member. Only visible to family admins.
+
+```ts
+// Members added here have user_id: null — they don't have the app yet.
+// When they register later, their account will be linked to this row.
+await createFamilyMember({
+  family_id: familyId,
+  user_id: null,   // ← linked in a future session when they join
+  name, relation, date_of_birth, blood_group, known_allergies, phone,
+  is_admin: false,
+  emergency_access_enabled: true,
+})
+```
+
+### `components/MemberAvatar.tsx` (upgraded)
+
+**Compliance dot:** A small coloured circle bottom-right of the avatar shows today's medication status at a glance — green (all taken), amber (partial), red (none), hidden (no medications).
+
+**Deterministic avatar colour:** Each person always gets the same background colour based on the first letter of their name, so the avatar looks consistent across sessions without storing a colour preference.
+
+```ts
+const colorIndex = member.name.charCodeAt(0) % avatarColors.length
+```
 
 ---
 
@@ -962,8 +1025,8 @@ npm start
 |---------|---------|--------|
 | 01 | Project Setup + Types + Schema | ✅ Done |
 | 02 | Auth Flow (Phone OTP) | ✅ Done |
-| 03 | Family Dashboard Home Screen | ⏳ Next |
-| 04 | Upload Flow (UI only) | ⏳ |
+| 03 | Family Dashboard Home Screen | ✅ Done |
+| 04 | Upload Flow (UI only) | ⏳ Next |
 | 05 | parse-report Edge Function | ⏳ |
 | 06 | Member Profile + Charts | ⏳ |
 | 07 | Medication Reminder System | ⏳ |
