@@ -555,15 +555,95 @@ const colorIndex = member.name.charCodeAt(0) % avatarColors.length
 
 ### `app/(app)/upload.tsx`
 
-**What it does (Session 04 will build the full version):** The document upload flow.
+**What it does:** 4-step state machine — pick → preview → uploading → done.
 
-**Planned logic:**
-1. User picks image from camera or gallery
-2. `expo-image-manipulator` compresses it to max 1200px, JPEG quality 0.82
-3. Upload to Supabase Storage at `/{family_id}/{member_id}/{uuid}.jpg`
-4. Create `documents` row with `parsing_status: 'pending'`
-5. Show loading state — "Reading your document..."
-6. Edge function picks it up and processes it
+**Key logic:**
+
+```ts
+// MANDATORY compression before upload (CLAUDE.md constraint)
+// max 1200px longest side, JPEG quality 0.82 — strips EXIF metadata too
+const compressed = await ImageManipulator.manipulateAsync(
+  imageUri,
+  [{ resize: { width: 1200 } }],
+  { compress: 0.82, format: ImageManipulator.SaveFormat.JPEG }
+)
+```
+
+```ts
+// Storage path is deterministic and scoped to the family + member
+const storagePath = `${family.id}/${selectedMember.id}/${uuid}.jpg`
+// RLS on storage means only that family can read the file
+```
+
+```ts
+// Creating the document row with parsing_status: 'pending' triggers
+// the parse-report edge function to pick it up automatically
+const doc = await createDocument({ ...fields, parsing_status: 'pending' })
+
+// Fire the edge function immediately — non-blocking, errors are swallowed
+// because parsing status will show 'failed' in the UI if it goes wrong
+supabase.functions.invoke('parse-report', { body: { documentId: doc.id } })
+```
+
+### `components/ClarificationCard.tsx`
+
+**What it does:** Shown when Google Vision confidence is below 85% on a numeric value. Gives the user two options: confirm our reading (one tap) or type the correct value manually.
+
+```ts
+// Two-mode UI: chip confirmation (fast) → manual text entry (fallback)
+// Once resolved, turns green and becomes read-only
+const [mode, setMode] = useState<'chips' | 'manual'>('chips')
+onResolved(item.field, value)  // bubbles up to parent to persist the correction
+```
+
+### `app/(app)/member/[id].tsx`
+
+**What it does:** 3-tab member profile — Timeline (documents) · Trends (charts) · Medications (tick/cross).
+
+```ts
+// All data for the member loads in parallel on mount
+await Promise.all([
+  loadDocumentsForMember(id),
+  loadMedications(id),
+  loadTodaysLogs(id),
+])
+// Then health metrics are fetched and grouped by metric name for charts
+const grouped = allMetrics.reduce((acc, m) => {
+  acc[m.metric_name] = [...(acc[m.metric_name] ?? []), m]
+  return acc
+}, {})
+```
+
+### `components/TrendChart.tsx`
+
+**What it does:** Victory Native line chart for a single health metric over time. Shows the latest value, reference range, trend arrow, and flags.
+
+```ts
+// Trend direction computed from first vs last value
+const trend = last > first ? 'up' : last < first ? 'down' : 'flat'
+// Line turns red if the latest value is flagged outside reference range
+const lineColor = latestFlagged ? '#EF4444' : '#0EA5E9'
+```
+
+### `app/(app)/emergency.tsx`
+
+**What it does:** Full-screen emergency card — no navigation chrome, maximum readability in a crisis. Blood group shown at 64px, allergies in red chips, active medications listed.
+
+```ts
+// Share button generates the public URL from the user's phone number
+const url = `https://medivault.in/e/${myProfile.phone}`
+await Share.share({ message: `My emergency medical profile: ${url}`, url })
+```
+
+### `app/emergency-access/[phone].tsx`
+
+**What it does:** Public web page fetched by receptionists. No login. Calls the `emergency-lookup` edge function and renders the profile in a printer-friendly layout.
+
+```ts
+// Fetches from the public edge function — no auth headers needed
+fetch(`${supabaseUrl}/functions/v1/emergency-lookup?phone=${phone}`)
+// Every fetch is logged server-side regardless of what we do here
+```
 
 ---
 
@@ -1026,11 +1106,11 @@ npm start
 | 01 | Project Setup + Types + Schema | ✅ Done |
 | 02 | Auth Flow (Phone OTP) | ✅ Done |
 | 03 | Family Dashboard Home Screen | ✅ Done |
-| 04 | Upload Flow (UI only) | ⏳ Next |
-| 05 | parse-report Edge Function | ⏳ |
-| 06 | Member Profile + Charts | ⏳ |
-| 07 | Medication Reminder System | ⏳ |
-| 08 | Emergency Mode | ⏳ |
+| 04 | Upload Flow (UI only) | ✅ Done |
+| 05 | parse-report Edge Function | ✅ Done |
+| 06 | Member Profile + Charts | ✅ Done |
+| 07 | Medication Reminder System | ⏳ Next |
+| 08 | Emergency Mode | ✅ Done |
 | 09 | Paywall + Razorpay | ⏳ |
 | 10 | Polish + Onboarding | ⏳ |
 
