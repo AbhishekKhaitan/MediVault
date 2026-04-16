@@ -1080,6 +1080,14 @@ Copy `.env.local.example` to `.env.local` and fill in your Supabase values. The 
 
 ## Running the Project
 
+### Node.js version requirement
+
+> ⚠️ **Use Node.js 20 LTS.** Node.js 24 has a Windows ESM path bug that breaks Expo 54's Metro bundler.
+> Install [nvm-windows](https://github.com/coreybutler/nvm-windows/releases) then run:
+> ```
+> nvm install 20 && nvm use 20
+> ```
+
 ```bash
 # 1. Install dependencies
 npm install
@@ -1088,13 +1096,16 @@ npm install
 cp .env.local.example .env.local
 # Fill in EXPO_PUBLIC_SUPABASE_URL and EXPO_PUBLIC_SUPABASE_ANON_KEY
 
-# 3. Run database migrations (in order, in Supabase SQL editor)
-# supabase/migrations/001_families.sql
-# supabase/migrations/002_family_members.sql
-# ... through 007_emergency_access_logs.sql
+# 3. Run database migrations in Supabase SQL editor (in order)
+# supabase/migrations/001_families.sql → 007_emergency_access_logs.sql
 
-# 4. Start the app
+# 4a. Run on your phone (best experience)
 npm start
+# Install Expo Go from Play Store / App Store → scan the QR code
+
+# 4b. Run in browser
+npm run web
+# Opens at http://localhost:8081
 ```
 
 ---
