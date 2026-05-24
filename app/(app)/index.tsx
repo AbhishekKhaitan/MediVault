@@ -141,7 +141,13 @@ export default function HomeScreen() {
             <Text className="text-lg font-bold text-slate-900">Family Members</Text>
             {myProfile?.is_admin && (
               <TouchableOpacity
-                onPress={() => setShowAddMember(true)}
+                onPress={() => {
+                  if (family?.subscription_status !== 'active' && members.length >= 1) {
+                    router.push('/(app)/paywall')
+                  } else {
+                    setShowAddMember(true)
+                  }
+                }}
                 className="flex-row items-center gap-1 bg-sky-500 rounded-full px-3 py-1.5"
               >
                 <Ionicons name="add" size={16} color="#fff" />
