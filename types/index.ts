@@ -123,6 +123,7 @@ export interface MedicationLog {
   taken: boolean
   taken_at: string | null
   scheduled_time: string
+  log_date: string
   created_at: string
 }
 

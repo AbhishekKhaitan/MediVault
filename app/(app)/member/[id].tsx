@@ -17,7 +17,7 @@ import { getHealthMetricsForMember } from '../../../lib/api'
 import { DocumentCard } from '../../../components/DocumentCard'
 import { TrendChart } from '../../../components/TrendChart'
 import { MedicationReminder } from '../../../components/MedicationReminder'
-import { logMedicationTaken } from '../../../lib/api'
+import { AddMedicationSheet } from '../../../components/AddMedicationSheet'
 import type { HealthMetric } from '../../../types'
 
 type Tab = 'timeline' | 'trends' | 'medications'
@@ -26,13 +26,23 @@ export default function MemberProfileScreen() {
   const { id } = useLocalSearchParams<{ id: string }>()
   const router = useRouter()
 
-  const { members } = useFamilyStore()
+  const { members, family } = useFamilyStore()
   const { documents, loadDocumentsForMember } = useDocumentStore()
-  const { medications, todaysLogs, loadMedications, loadTodaysLogs } = useMedicationStore()
+  const {
+    medications,
+    todaysLogs,
+    loadMedications,
+    loadTodaysLogs,
+    logMedication,
+    setReminderTimes,
+    addMedication,
+    removeMedication,
+  } = useMedicationStore()
 
   const [activeTab, setActiveTab] = useState<Tab>('timeline')
   const [metrics, setMetrics] = useState<Record<string, HealthMetric[]>>({})
   const [refreshing, setRefreshing] = useState(false)
+  const [showAddMed, setShowAddMed] = useState(false)
 
   const member = members.find((m) => m.id === id)
   const memberDocs = documents[id] ?? []
@@ -47,7 +57,6 @@ export default function MemberProfileScreen() {
       loadMedications(id),
       loadTodaysLogs(id),
     ])
-    // Load grouped health metrics for trend charts
     const allMetrics = await getHealthMetricsForMember(id)
     const grouped: Record<string, HealthMetric[]> = {}
     for (const m of allMetrics) {
@@ -65,21 +74,6 @@ export default function MemberProfileScreen() {
     setRefreshing(false)
   }, [loadAll])
 
-  // ─── Medication log handler ─────────────────────────────────────────────────
-  const handleMedicationLog = async (medicationId: string, taken: boolean) => {
-    if (!id) return
-    const today = new Date().toISOString().split('T')[0]
-    await logMedicationTaken({
-      medication_id: medicationId,
-      member_id: id,
-      taken,
-      taken_at: taken ? new Date().toISOString() : null,
-      scheduled_time: new Date().toTimeString().slice(0, 5),
-      log_date: today,
-    })
-    loadTodaysLogs(id)
-  }
-
   if (!member) {
     return (
       <SafeAreaView className="flex-1 bg-slate-50 items-center justify-center">
@@ -88,7 +82,6 @@ export default function MemberProfileScreen() {
     )
   }
 
-  // Compute age from date_of_birth
   const age = member.date_of_birth
     ? Math.floor((Date.now() - new Date(member.date_of_birth).getTime()) / (365.25 * 24 * 3600 * 1000))
     : null
@@ -108,7 +101,6 @@ export default function MemberProfileScreen() {
           <Text className="text-xl font-bold text-slate-900 flex-1">{member.name}</Text>
         </View>
 
-        {/* Member profile card */}
         <View className="flex-row items-center gap-4">
           <View className="w-16 h-16 rounded-full bg-sky-100 items-center justify-center">
             <Text className="text-sky-700 font-bold text-xl">
@@ -129,10 +121,9 @@ export default function MemberProfileScreen() {
           </View>
         </View>
 
-        {/* Stats row */}
         <View className="flex-row mt-4 gap-3">
           <StatCard value={memberDocs.length} label="Documents" />
-          <StatCard value={memberMeds.filter(m => m.is_active).length} label="Active Meds" />
+          <StatCard value={memberMeds.filter((m) => m.is_active).length} label="Active Meds" />
           <StatCard value={Object.keys(metrics).length} label="Metrics tracked" />
         </View>
       </View>
@@ -199,11 +190,20 @@ export default function MemberProfileScreen() {
         {/* ── Medications tab ── */}
         {activeTab === 'medications' && (
           <View>
+            {/* Add medication button */}
+            <TouchableOpacity
+              onPress={() => setShowAddMed(true)}
+              className="flex-row items-center justify-center gap-2 border border-dashed border-sky-300 bg-sky-50 rounded-xl py-3 mb-4"
+            >
+              <Ionicons name="add-circle-outline" size={18} color="#0EA5E9" />
+              <Text className="text-sky-600 font-semibold text-sm">Add Medication Manually</Text>
+            </TouchableOpacity>
+
             {memberMeds.length === 0 ? (
               <EmptyState
                 icon="medical-outline"
                 title="No medications"
-                subtitle="Upload a prescription and medications will appear here automatically"
+                subtitle="Upload a prescription or add one manually above"
               />
             ) : (
               memberMeds.map((med) => {
@@ -213,7 +213,11 @@ export default function MemberProfileScreen() {
                     key={med.id}
                     medication={med}
                     taken={log?.taken}
-                    onTaken={(taken) => handleMedicationLog(med.id, taken)}
+                    onTaken={(taken) => logMedication(med.id, id!, taken)}
+                    onUpdateTimes={(times) =>
+                      setReminderTimes(med.id, id!, times, member.name)
+                    }
+                    onRemove={() => removeMedication(med.id, id!)}
                   />
                 )
               })
@@ -221,6 +225,17 @@ export default function MemberProfileScreen() {
           </View>
         )}
       </ScrollView>
+
+      {/* ── Add Medication Sheet ── */}
+      {family && (
+        <AddMedicationSheet
+          visible={showAddMed}
+          familyId={family.id}
+          memberId={id!}
+          onClose={() => setShowAddMed(false)}
+          onAdded={addMedication}
+        />
+      )}
     </SafeAreaView>
   )
 }
@@ -230,7 +245,9 @@ export default function MemberProfileScreen() {
 function InfoChip({ label, danger }: { label: string; danger?: boolean }) {
   return (
     <View className={`px-2.5 py-0.5 rounded-full ${danger ? 'bg-red-50' : 'bg-slate-100'}`}>
-      <Text className={`text-xs font-semibold ${danger ? 'text-red-600' : 'text-slate-600'}`}>{label}</Text>
+      <Text className={`text-xs font-semibold ${danger ? 'text-red-600' : 'text-slate-600'}`}>
+        {label}
+      </Text>
     </View>
   )
 }
@@ -245,7 +262,11 @@ function StatCard({ value, label }: { value: number; label: string }) {
 }
 
 function EmptyState({
-  icon, title, subtitle, onAction, actionLabel,
+  icon,
+  title,
+  subtitle,
+  onAction,
+  actionLabel,
 }: {
   icon: React.ComponentProps<typeof Ionicons>['name']
   title: string

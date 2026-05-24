@@ -272,3 +272,25 @@ export async function getTodaysMedicationLogs(memberId: string): Promise<Medicat
   if (error) throw error
   return (data ?? []) as MedicationLog[]
 }
+
+export async function createMedication(
+  medication: Omit<Medication, 'id' | 'created_at'>
+): Promise<Medication> {
+  const { data, error } = await supabase
+    .from('medications')
+    .insert(medication)
+    .select()
+    .single()
+
+  if (error) throw error
+  return data as Medication
+}
+
+export async function deactivateMedication(medicationId: string): Promise<void> {
+  const { error } = await supabase
+    .from('medications')
+    .update({ is_active: false })
+    .eq('id', medicationId)
+
+  if (error) throw error
+}
