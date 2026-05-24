@@ -39,17 +39,15 @@ export const useFamilyStore = create<FamilyStore>((set, get) => ({
       set({ family, myProfile, members, isLoading: false })
 
       // Best-effort: refresh push token on each app load and persist it
-      // to the member row so edge functions can reach this device.
+      // to the member row so edge functions can send targeted notifications.
       // Runs silently in the background — never blocks the UI.
       if (myProfile) {
         registerForPushNotifications()
           .then((token) => {
             if (token) {
-              // We store the push token in a JSONB metadata column.
-              // The edge functions read this to send targeted push notifications.
               supabase
                 .from('family_members')
-                .update({ avatar_url: myProfile.avatar_url })  // placeholder — push_token column added in migration 008
+                .update({ push_token: token })
                 .eq('id', myProfile.id)
                 .then(() => {})  // fire-and-forget
             }

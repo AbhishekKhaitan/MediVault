@@ -30,7 +30,15 @@
     },
     "plugins": [
       "expo-router",
-      "expo-image-picker"
+      "expo-image-picker",
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/icon.png",
+          "color": "#0EA5E9",
+          "androidMode": "default"
+        }
+      ]
     ],
     "scheme": "medivault",
     "experiments": {

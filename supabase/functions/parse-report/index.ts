@@ -208,16 +208,6 @@ serve(async (req) => {
     })
   } catch (err) {
     console.error('parse-report error:', err)
-
-    // Update document to failed state
-    const supabase = createClient(
-      Deno.env.get('SUPABASE_URL')!,
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
-    )
-    const body = await (async () => {
-      try { return await (await fetch('.')).json() } catch { return {} }
-    })()
-
     return new Response(JSON.stringify({ error: String(err) }), { status: 500 })
   }
 })
