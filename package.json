@@ -6,7 +6,8 @@
     "start": "expo start",
     "android": "expo start --android",
     "ios": "expo start --ios",
-    "web": "expo start --web"
+    "web": "expo start --web",
+    "postinstall": "node -e \"const fs=require('fs'),p='node_modules/@react-native/js-polyfills/console.js';if(!fs.existsSync(p))fs.writeFileSync(p,\\\"'use strict';\\\");\""
   },
   "dependencies": {
     "@expo/vector-icons": "^15.1.1",
