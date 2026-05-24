@@ -46,11 +46,9 @@ export default function AppLayout() {
           tabBarIcon: ({ focused }) => <TabIcon name="home" focused={focused} />,
         }}
       />
-      {/* member/[id] is navigated to programmatically — hidden from tab bar */}
-      <Tabs.Screen
-        name="member/[id]"
-        options={{ href: null }}
-      />
+      {/* These screens are navigated to programmatically — hidden from tab bar */}
+      <Tabs.Screen name="member/[id]" options={{ href: null }} />
+      <Tabs.Screen name="paywall" options={{ href: null }} />
       <Tabs.Screen
         name="upload"
         options={{

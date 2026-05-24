@@ -11,10 +11,12 @@ interface FamilyStore {
   isLoading: boolean
   error: string | null
   loadFamily: () => Promise<void>
+  refreshFamily: () => Promise<void>
+  isPro: () => boolean
   reset: () => void
 }
 
-export const useFamilyStore = create<FamilyStore>((set) => ({
+export const useFamilyStore = create<FamilyStore>((set, get) => ({
   family: null,
   members: [],
   myProfile: null,
@@ -58,6 +60,15 @@ export const useFamilyStore = create<FamilyStore>((set) => ({
       set({ error: String(err), isLoading: false })
     }
   },
+
+  // Re-fetches just the family row — used after Razorpay checkout to pick up
+  // the updated subscription_status without a full page reload.
+  refreshFamily: async () => {
+    const family = await getMyFamily()
+    set({ family })
+  },
+
+  isPro: () => get().family?.subscription_status === 'active',
 
   // Called on sign-out — clears all user data from memory so the
   // next person who logs in on this device starts with a clean slate.

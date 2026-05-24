@@ -76,7 +76,7 @@ serve(async (req) => {
     }
 
     case 'subscription.halted': {
-      // Immediate cancellation + notify admin
+      // Immediate cancellation due to payment failure — revoke access now
       await supabase
         .from('families')
         .update({
@@ -84,7 +84,35 @@ serve(async (req) => {
           subscription_end_date: new Date().toISOString(),
         })
         .eq('razorpay_subscription_id', subscriptionId)
-      // TODO (Session 09): Send push notification to admin about failed payment
+
+      // Notify the family admin so they can update their payment method
+      const { data: haltedFamily } = await supabase
+        .from('families')
+        .select('id')
+        .eq('razorpay_subscription_id', subscriptionId)
+        .single()
+
+      if (haltedFamily) {
+        const { data: admin } = await supabase
+          .from('family_members')
+          .select('push_token')
+          .eq('family_id', haltedFamily.id)
+          .eq('is_admin', true)
+          .maybeSingle()
+
+        if (admin?.push_token) {
+          await fetch('https://exp.host/--/api/v2/push/send', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              to: admin.push_token,
+              title: 'MediVault subscription paused',
+              body: 'Your payment could not be processed. Update your payment method to restore full access.',
+              data: { type: 'subscription_halted' },
+            }),
+          })
+        }
+      }
       break
     }
   }

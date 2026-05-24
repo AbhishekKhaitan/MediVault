@@ -26,7 +26,7 @@ export default function MemberProfileScreen() {
   const { id } = useLocalSearchParams<{ id: string }>()
   const router = useRouter()
 
-  const { members, family } = useFamilyStore()
+  const { members, family, isPro } = useFamilyStore()
   const { documents, loadDocumentsForMember } = useDocumentStore()
   const {
     medications,
@@ -173,7 +173,9 @@ export default function MemberProfileScreen() {
         {/* ── Trends tab ── */}
         {activeTab === 'trends' && (
           <View>
-            {Object.keys(metrics).length === 0 ? (
+            {!isPro() ? (
+              <ProGate onUpgrade={() => router.push('/(app)/paywall')} />
+            ) : Object.keys(metrics).length === 0 ? (
               <EmptyState
                 icon="stats-chart-outline"
                 title="No metrics yet"
@@ -257,6 +259,28 @@ function StatCard({ value, label }: { value: number; label: string }) {
     <View className="flex-1 bg-slate-50 rounded-xl p-3 items-center border border-slate-100">
       <Text className="text-2xl font-bold text-slate-900">{value}</Text>
       <Text className="text-xs text-slate-400 text-center mt-0.5">{label}</Text>
+    </View>
+  )
+}
+
+function ProGate({ onUpgrade }: { onUpgrade: () => void }) {
+  return (
+    <View style={{ alignItems: 'center', paddingVertical: 48, paddingHorizontal: 32 }}>
+      <View style={{ width: 64, height: 64, borderRadius: 32, backgroundColor: '#F0F9FF', alignItems: 'center', justifyContent: 'center', marginBottom: 12 }}>
+        <Ionicons name="lock-closed" size={28} color="#0EA5E9" />
+      </View>
+      <Text style={{ fontSize: 16, fontWeight: '700', color: '#0F172A', textAlign: 'center' }}>
+        Trend charts are a Family Plan feature
+      </Text>
+      <Text style={{ fontSize: 13, color: '#64748B', textAlign: 'center', marginTop: 6, lineHeight: 20 }}>
+        Track blood sugar, haemoglobin, and more over time with a subscription.
+      </Text>
+      <TouchableOpacity
+        onPress={onUpgrade}
+        style={{ marginTop: 20, backgroundColor: '#0EA5E9', paddingHorizontal: 28, paddingVertical: 12, borderRadius: 24 }}
+      >
+        <Text style={{ color: '#fff', fontWeight: '700', fontSize: 14 }}>Upgrade · ₹49/mo</Text>
+      </TouchableOpacity>
     </View>
   )
 }

@@ -7,7 +7,7 @@ import {
   Alert,
   Image,
 } from 'react-native'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter } from 'expo-router'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
@@ -15,7 +15,7 @@ import * as ImagePicker from 'expo-image-picker'
 import * as ImageManipulator from 'expo-image-manipulator'
 import 'react-native-get-random-values'
 import { supabase } from '../../lib/supabase'
-import { createDocument } from '../../lib/api'
+import { createDocument, getFamilyDocumentCount } from '../../lib/api'
 import { useFamilyStore } from '../../stores/familyStore'
 import { useDocumentStore } from '../../stores/documentStore'
 import type { DocumentType, FamilyMember } from '../../types'
@@ -45,9 +45,29 @@ export default function UploadScreen() {
   const [selectedMember, setSelectedMember] = useState<FamilyMember | null>(myProfile)
   const [docType, setDocType] = useState<DocumentType>('lab_report')
   const [uploadProgress, setUploadProgress] = useState('')
+  const [docCount, setDocCount] = useState<number | null>(null)
+
+  const isPro = family?.subscription_status === 'active'
+
+  // Check document count on mount for free-tier gate
+  useEffect(() => {
+    if (family && !isPro) {
+      getFamilyDocumentCount(family.id).then(setDocCount).catch(() => {})
+    }
+  }, [family?.id])
+
+  const checkFreeTierLimit = (): boolean => {
+    if (isPro) return true
+    if (docCount !== null && docCount >= 20) {
+      router.push('/(app)/paywall')
+      return false
+    }
+    return true
+  }
 
   // ─── Pick from camera ──────────────────────────────────────────────────────
   const pickFromCamera = async () => {
+    if (!checkFreeTierLimit()) return
     const { status } = await ImagePicker.requestCameraPermissionsAsync()
     if (status !== 'granted') {
       Alert.alert('Permission needed', 'Camera access is required to scan documents.')
@@ -65,6 +85,7 @@ export default function UploadScreen() {
 
   // ─── Pick from gallery ─────────────────────────────────────────────────────
   const pickFromGallery = async () => {
+    if (!checkFreeTierLimit()) return
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync()
     if (status !== 'granted') {
       Alert.alert('Permission needed', 'Photo library access is required to upload documents.')

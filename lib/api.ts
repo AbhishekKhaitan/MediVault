@@ -294,3 +294,25 @@ export async function deactivateMedication(medicationId: string): Promise<void> 
 
   if (error) throw error
 }
+
+// ─── Subscription ─────────────────────────────────────────────────────────────
+
+export async function initiateSubscription(
+  planType: 'monthly' | 'yearly',
+  familyId: string
+): Promise<{ subscription_id: string; short_url: string }> {
+  const { data, error } = await supabase.functions.invoke('create-razorpay-subscription', {
+    body: { plan_type: planType, family_id: familyId },
+  })
+  if (error) throw error
+  return data as { subscription_id: string; short_url: string }
+}
+
+export async function getFamilyDocumentCount(familyId: string): Promise<number> {
+  const { count, error } = await supabase
+    .from('documents')
+    .select('*', { count: 'exact', head: true })
+    .eq('family_id', familyId)
+  if (error) throw error
+  return count ?? 0
+}

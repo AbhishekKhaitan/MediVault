@@ -1,11 +1,15 @@
 import { View, Text, TouchableOpacity, Alert } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
+import { useRouter } from 'expo-router'
 import { supabase } from '../../lib/supabase'
 import { useFamilyStore } from '../../stores/familyStore'
 
 export default function SettingsScreen() {
+  const router = useRouter()
   const { family, myProfile, reset } = useFamilyStore()
+
+  const isPro = family?.subscription_status === 'active'
 
   const handleSignOut = () => {
     Alert.alert(
@@ -17,9 +21,8 @@ export default function SettingsScreen() {
           text: 'Sign out',
           style: 'destructive',
           onPress: async () => {
-            reset()                        // clear Zustand state first
-            await supabase.auth.signOut()  // then destroy the session
-            // _layout.tsx auth guard will redirect to login automatically
+            reset()
+            await supabase.auth.signOut()
           },
         },
       ]
@@ -42,7 +45,9 @@ export default function SettingsScreen() {
               </View>
               <View className="flex-1">
                 <Text className="font-semibold text-slate-900 text-base">{myProfile.name}</Text>
-                <Text className="text-slate-500 text-sm">{myProfile.relation} · {myProfile.phone ?? 'No phone'}</Text>
+                <Text className="text-slate-500 text-sm">
+                  {myProfile.relation} · {myProfile.phone ?? 'No phone'}
+                </Text>
                 {myProfile.blood_group && (
                   <Text className="text-red-500 text-sm font-medium mt-0.5">
                     Blood group: {myProfile.blood_group}
@@ -53,29 +58,70 @@ export default function SettingsScreen() {
           </View>
         )}
 
-        {/* ── Family card ── */}
+        {/* ── Subscription card ── */}
         {family && (
           <View className="bg-white rounded-2xl border border-slate-200 p-4 mb-4">
-            <View className="flex-row items-center justify-between">
+            <View className="flex-row items-center justify-between mb-3">
               <View>
-                <Text className="text-xs text-slate-400 font-medium uppercase tracking-wide">Family</Text>
-                <Text className="text-slate-900 font-semibold mt-0.5">{family.name}</Text>
+                <Text className="text-xs text-slate-400 font-medium uppercase tracking-wide">
+                  {family.name}
+                </Text>
+                <Text className="text-slate-900 font-semibold mt-0.5">
+                  {isPro ? 'Family Plan' : 'Free Plan'}
+                </Text>
               </View>
-              <View className={`px-3 py-1 rounded-full ${
-                family.subscription_status === 'active' ? 'bg-green-50' : 'bg-slate-100'
-              }`}>
-                <Text className={`text-xs font-semibold ${
-                  family.subscription_status === 'active' ? 'text-green-600' : 'text-slate-500'
-                }`}>
-                  {family.subscription_status === 'active' ? 'Family Plan' : 'Free'}
+              <View
+                className={`px-3 py-1 rounded-full ${isPro ? 'bg-green-50' : 'bg-amber-50'}`}
+              >
+                <Text
+                  className={`text-xs font-semibold ${isPro ? 'text-green-600' : 'text-amber-600'}`}
+                >
+                  {isPro ? 'Active ✓' : 'Limited'}
                 </Text>
               </View>
             </View>
+
+            {isPro ? (
+              <View>
+                {family.subscription_end_date && (
+                  <Text className="text-xs text-slate-400">
+                    Renews{' '}
+                    {new Date(family.subscription_end_date).toLocaleDateString('en-IN', {
+                      day: 'numeric',
+                      month: 'long',
+                      year: 'numeric',
+                    })}
+                  </Text>
+                )}
+                <Text className="text-xs text-slate-400 mt-1">
+                  Manage subscription via your Razorpay account
+                </Text>
+              </View>
+            ) : (
+              <View>
+                <View className="flex-row gap-1 flex-wrap mb-3">
+                  {['1 member only', '20 docs max', 'No AI parsing', 'No trend charts'].map((l) => (
+                    <View key={l} className="bg-slate-100 rounded-full px-2 py-0.5">
+                      <Text className="text-slate-500 text-xs">{l}</Text>
+                    </View>
+                  ))}
+                </View>
+                <TouchableOpacity
+                  onPress={() => router.push('/(app)/paywall')}
+                  className="bg-sky-500 rounded-xl py-2.5 items-center flex-row justify-center gap-1.5"
+                >
+                  <Ionicons name="shield-checkmark-outline" size={15} color="#fff" />
+                  <Text className="text-white font-bold text-sm">
+                    Upgrade — ₹49/month
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            )}
           </View>
         )}
 
         {/* ── Danger zone ── */}
-        <View className="mt-4">
+        <View className="mt-2">
           <TouchableOpacity
             onPress={handleSignOut}
             className="flex-row items-center justify-between bg-white border border-red-100 rounded-2xl px-5 py-4"
