@@ -1,20 +1,15 @@
 import { Tabs } from 'expo-router'
 import { Ionicons } from '@expo/vector-icons'
+import { C } from '../../constants/theme'
 
 type IconName = React.ComponentProps<typeof Ionicons>['name']
 
-function TabIcon({
-  name,
-  focused,
-}: {
-  name: IconName
-  focused: boolean
-}) {
+function TabIcon({ name, focused }: { name: IconName; focused: boolean }) {
   return (
     <Ionicons
       name={focused ? name : (`${name}-outline` as IconName)}
-      size={24}
-      color={focused ? '#0EA5E9' : '#94A3B8'}
+      size={22}
+      color={focused ? C.accent : C.textSub}
     />
   )
 }
@@ -24,18 +19,19 @@ export default function AppLayout() {
     <Tabs
       screenOptions={{
         headerShown: false,
-        tabBarActiveTintColor: '#0EA5E9',
-        tabBarInactiveTintColor: '#94A3B8',
+        tabBarActiveTintColor: C.accent,
+        tabBarInactiveTintColor: C.textSub,
         tabBarStyle: {
-          backgroundColor: '#FFFFFF',
-          borderTopColor: '#E2E8F0',
-          paddingBottom: 6,
-          paddingTop: 6,
-          height: 60,
+          backgroundColor: C.tabBar,
+          borderTopColor: C.tabBorder,
+          paddingBottom: 8,
+          paddingTop: 8,
+          height: 62,
         },
         tabBarLabelStyle: {
-          fontSize: 11,
-          fontWeight: '500',
+          fontSize: 10,
+          fontWeight: '600',
+          letterSpacing: 0.3,
         },
       }}
     >
@@ -46,7 +42,6 @@ export default function AppLayout() {
           tabBarIcon: ({ focused }) => <TabIcon name="home" focused={focused} />,
         }}
       />
-      {/* These screens are navigated to programmatically — hidden from tab bar */}
       <Tabs.Screen name="member/[id]" options={{ href: null }} />
       <Tabs.Screen name="paywall" options={{ href: null }} />
       <Tabs.Screen
@@ -61,9 +56,9 @@ export default function AppLayout() {
         options={{
           title: 'Emergency',
           tabBarIcon: ({ focused }) => (
-            <Ionicons name="medkit" size={24} color={focused ? '#EF4444' : '#94A3B8'} />
+            <Ionicons name="medkit" size={22} color={focused ? C.danger : C.textSub} />
           ),
-          tabBarActiveTintColor: '#EF4444',
+          tabBarActiveTintColor: C.danger,
         }}
       />
       <Tabs.Screen

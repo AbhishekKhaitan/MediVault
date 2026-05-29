@@ -1,139 +1,163 @@
-import { View, Text, TouchableOpacity, Alert } from 'react-native'
+import { View, Text, TouchableOpacity, Alert, ScrollView } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
 import { useRouter } from 'expo-router'
 import { supabase } from '../../lib/supabase'
 import { useFamilyStore } from '../../stores/familyStore'
+import { C } from '../../constants/theme'
+
+function Row({ icon, label, color, onPress, right }: {
+  icon: React.ComponentProps<typeof Ionicons>['name']
+  label: string; color?: string; onPress?: () => void
+  right?: React.ReactNode
+}) {
+  return (
+    <TouchableOpacity
+      onPress={onPress}
+      activeOpacity={onPress ? 0.7 : 1}
+      style={{
+        flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 15,
+      }}
+    >
+      <Ionicons name={icon} size={18} color={color ?? C.textSub} style={{ marginRight: 12 }} />
+      <Text style={{ flex: 1, fontSize: 14, fontWeight: '500', color: color ?? C.text }}>{label}</Text>
+      {right ?? <Ionicons name="chevron-forward" size={14} color={C.textMute} />}
+    </TouchableOpacity>
+  )
+}
 
 export default function SettingsScreen() {
   const router = useRouter()
   const { family, myProfile, reset } = useFamilyStore()
-
   const isPro = family?.subscription_status === 'active'
 
   const handleSignOut = () => {
-    Alert.alert(
-      'Sign out',
-      'Are you sure you want to sign out?',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Sign out',
-          style: 'destructive',
-          onPress: async () => {
-            reset()
-            await supabase.auth.signOut()
-          },
-        },
-      ]
-    )
+    Alert.alert('Sign out', 'Are you sure?', [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Sign out', style: 'destructive', onPress: async () => { reset(); await supabase.auth.signOut() } },
+    ])
   }
 
-  return (
-    <SafeAreaView className="flex-1 bg-slate-50" edges={['top']}>
-      <View className="px-6 pt-4 pb-6">
-        <Text className="text-2xl font-bold text-slate-900 mb-6">Settings</Text>
+  const Section = ({ title, children }: { title: string; children: React.ReactNode }) => (
+    <View style={{ marginBottom: 24 }}>
+      <Text style={{ fontSize: 11, fontWeight: '700', color: C.textSub, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 8, paddingHorizontal: 24 }}>
+        {title}
+      </Text>
+      <View style={{ backgroundColor: C.surface, borderRadius: 16, borderWidth: 1, borderColor: C.border, marginHorizontal: 24, overflow: 'hidden' }}>
+        {children}
+      </View>
+    </View>
+  )
 
-        {/* ── Profile card ── */}
+  const Divider = () => <View style={{ height: 1, backgroundColor: C.border, marginLeft: 46 }} />
+
+  return (
+    <SafeAreaView style={{ flex: 1, backgroundColor: C.bg }} edges={['top']}>
+      <ScrollView showsVerticalScrollIndicator={false}>
+        <Text style={{ fontSize: 26, fontWeight: '800', color: C.text, paddingHorizontal: 24, paddingTop: 20, paddingBottom: 24, letterSpacing: -0.3 }}>
+          Settings
+        </Text>
+
+        {/* Profile */}
         {myProfile && (
-          <View className="bg-white rounded-2xl border border-slate-200 p-5 mb-4">
-            <View className="flex-row items-center gap-4">
-              <View className="w-14 h-14 rounded-full bg-sky-100 items-center justify-center">
-                <Text className="text-sky-700 font-bold text-xl">
+          <Section title="Profile">
+            <View style={{ flexDirection: 'row', alignItems: 'center', padding: 16 }}>
+              <View style={{
+                width: 50, height: 50, borderRadius: 25,
+                backgroundColor: C.accentBg, alignItems: 'center', justifyContent: 'center', marginRight: 14,
+              }}>
+                <Text style={{ color: C.accent, fontWeight: '800', fontSize: 18 }}>
                   {myProfile.name.slice(0, 2).toUpperCase()}
                 </Text>
               </View>
-              <View className="flex-1">
-                <Text className="font-semibold text-slate-900 text-base">{myProfile.name}</Text>
-                <Text className="text-slate-500 text-sm">
-                  {myProfile.relation} · {myProfile.phone ?? 'No phone'}
+              <View style={{ flex: 1 }}>
+                <Text style={{ fontWeight: '700', color: C.text, fontSize: 15 }}>{myProfile.name}</Text>
+                <Text style={{ color: C.textSub, fontSize: 13, marginTop: 2 }}>
+                  {myProfile.relation}{myProfile.phone ? ` · ${myProfile.phone}` : ''}
                 </Text>
                 {myProfile.blood_group && (
-                  <Text className="text-red-500 text-sm font-medium mt-0.5">
-                    Blood group: {myProfile.blood_group}
+                  <Text style={{ color: C.danger, fontSize: 12, fontWeight: '600', marginTop: 2 }}>
+                    Blood: {myProfile.blood_group}
                   </Text>
                 )}
               </View>
             </View>
-          </View>
+          </Section>
         )}
 
-        {/* ── Subscription card ── */}
+        {/* Subscription */}
         {family && (
-          <View className="bg-white rounded-2xl border border-slate-200 p-4 mb-4">
-            <View className="flex-row items-center justify-between mb-3">
-              <View>
-                <Text className="text-xs text-slate-400 font-medium uppercase tracking-wide">
-                  {family.name}
-                </Text>
-                <Text className="text-slate-900 font-semibold mt-0.5">
-                  {isPro ? 'Family Plan' : 'Free Plan'}
-                </Text>
-              </View>
-              <View
-                className={`px-3 py-1 rounded-full ${isPro ? 'bg-green-50' : 'bg-amber-50'}`}
-              >
-                <Text
-                  className={`text-xs font-semibold ${isPro ? 'text-green-600' : 'text-amber-600'}`}
-                >
-                  {isPro ? 'Active ✓' : 'Limited'}
-                </Text>
-              </View>
-            </View>
-
-            {isPro ? (
-              <View>
-                {family.subscription_end_date && (
-                  <Text className="text-xs text-slate-400">
-                    Renews{' '}
-                    {new Date(family.subscription_end_date).toLocaleDateString('en-IN', {
-                      day: 'numeric',
-                      month: 'long',
-                      year: 'numeric',
-                    })}
+          <Section title="Subscription">
+            <View style={{ padding: 16 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+                <View>
+                  <Text style={{ fontSize: 12, color: C.textMute }}>{family.name}</Text>
+                  <Text style={{ fontSize: 16, fontWeight: '700', color: C.text, marginTop: 2 }}>
+                    {isPro ? 'Family Plan' : 'Free Plan'}
                   </Text>
-                )}
-                <Text className="text-xs text-slate-400 mt-1">
-                  Manage subscription via your Razorpay account
-                </Text>
-              </View>
-            ) : (
-              <View>
-                <View className="flex-row gap-1 flex-wrap mb-3">
-                  {['1 member only', '20 docs max', 'No AI parsing', 'No trend charts'].map((l) => (
-                    <View key={l} className="bg-slate-100 rounded-full px-2 py-0.5">
-                      <Text className="text-slate-500 text-xs">{l}</Text>
-                    </View>
-                  ))}
                 </View>
-                <TouchableOpacity
-                  onPress={() => router.push('/(app)/paywall')}
-                  className="bg-sky-500 rounded-xl py-2.5 items-center flex-row justify-center gap-1.5"
-                >
-                  <Ionicons name="shield-checkmark-outline" size={15} color="#fff" />
-                  <Text className="text-white font-bold text-sm">
-                    Upgrade — ₹49/month
+                <View style={{
+                  paddingHorizontal: 12, paddingVertical: 5, borderRadius: 20,
+                  backgroundColor: isPro ? C.successBg : C.warningBg,
+                  borderWidth: 1, borderColor: isPro ? C.success : C.warning,
+                }}>
+                  <Text style={{ fontSize: 12, fontWeight: '700', color: isPro ? C.success : C.warning }}>
+                    {isPro ? 'Active ✓' : 'Limited'}
                   </Text>
-                </TouchableOpacity>
+                </View>
               </View>
-            )}
-          </View>
+
+              {isPro ? (
+                family.subscription_end_date && (
+                  <Text style={{ fontSize: 13, color: C.textSub }}>
+                    Renews {new Date(family.subscription_end_date).toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' })}
+                  </Text>
+                )
+              ) : (
+                <>
+                  <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 14 }}>
+                    {['1 member only', '20 docs max', 'No AI parsing', 'No trends'].map((l) => (
+                      <View key={l} style={{ backgroundColor: C.card, borderRadius: 12, paddingHorizontal: 10, paddingVertical: 4, borderWidth: 1, borderColor: C.border }}>
+                        <Text style={{ color: C.textSub, fontSize: 12 }}>{l}</Text>
+                      </View>
+                    ))}
+                  </View>
+                  <TouchableOpacity
+                    onPress={() => router.push('/(app)/paywall')}
+                    style={{
+                      backgroundColor: C.accent, borderRadius: 12, paddingVertical: 12,
+                      alignItems: 'center', flexDirection: 'row', justifyContent: 'center', gap: 8,
+                    }}
+                  >
+                    <Ionicons name="shield-checkmark" size={14} color={C.bg} />
+                    <Text style={{ color: C.bg, fontWeight: '800', fontSize: 14 }}>Upgrade — ₹49/month</Text>
+                  </TouchableOpacity>
+                </>
+              )}
+            </View>
+          </Section>
         )}
 
-        {/* ── Danger zone ── */}
-        <View className="mt-2">
-          <TouchableOpacity
-            onPress={handleSignOut}
-            className="flex-row items-center justify-between bg-white border border-red-100 rounded-2xl px-5 py-4"
-          >
-            <View className="flex-row items-center gap-3">
-              <Ionicons name="log-out-outline" size={20} color="#EF4444" />
-              <Text className="text-red-500 font-semibold">Sign Out</Text>
-            </View>
-            <Ionicons name="chevron-forward" size={16} color="#FCA5A5" />
-          </TouchableOpacity>
-        </View>
-      </View>
+        {/* App */}
+        <Section title="App">
+          <Row icon="shield-outline" label="Privacy Policy" />
+          <Divider />
+          <Row icon="document-text-outline" label="Terms of Service" />
+          <Divider />
+          <Row icon="information-circle-outline" label="Version 1.0.0"
+            right={<Text style={{ color: C.textMute, fontSize: 13 }}>1.0.0</Text>}
+          />
+        </Section>
+
+        {/* Sign out */}
+        <Section title="Account">
+          <Row icon="log-out-outline" label="Sign Out" color={C.danger} onPress={handleSignOut}
+            right={<Ionicons name="chevron-forward" size={14} color={C.danger} />}
+          />
+        </Section>
+
+        <View style={{ height: 40 }} />
+      </ScrollView>
     </SafeAreaView>
   )
 }

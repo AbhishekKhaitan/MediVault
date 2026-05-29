@@ -1,4 +1,6 @@
 import { create } from 'zustand'
+import { persist, createJSONStorage } from 'zustand/middleware'
+import AsyncStorage from '@react-native-async-storage/async-storage'
 import type { Family, FamilyMember } from '../types'
 import { getMyFamily, getFamilyMembers, getMyMemberProfile } from '../lib/api'
 import { registerForPushNotifications } from '../lib/notifications'
@@ -9,66 +11,81 @@ interface FamilyStore {
   members: FamilyMember[]
   myProfile: FamilyMember | null
   isLoading: boolean
+  isHydrated: boolean
   error: string | null
   loadFamily: () => Promise<void>
   refreshFamily: () => Promise<void>
   isPro: () => boolean
   reset: () => void
+  setHydrated: () => void
 }
 
-export const useFamilyStore = create<FamilyStore>((set, get) => ({
-  family: null,
-  members: [],
-  myProfile: null,
-  isLoading: false,
-  error: null,
+export const useFamilyStore = create<FamilyStore>()(
+  persist(
+    (set, get) => ({
+      family: null,
+      members: [],
+      myProfile: null,
+      isLoading: false,
+      isHydrated: false,
+      error: null,
 
-  loadFamily: async () => {
-    set({ isLoading: true, error: null })
-    try {
-      const [family, myProfile] = await Promise.all([
-        getMyFamily(),
-        getMyMemberProfile(),
-      ])
+      setHydrated: () => set({ isHydrated: true }),
 
-      let members: FamilyMember[] = []
-      if (family) {
-        members = await getFamilyMembers(family.id)
-      }
+      loadFamily: async () => {
+        // If we already have cached data, don't show the loading spinner —
+        // just fetch in the background and update silently
+        const hasCached = !!get().family
+        if (!hasCached) set({ isLoading: true, error: null })
 
-      set({ family, myProfile, members, isLoading: false })
+        try {
+          const [family, myProfile] = await Promise.all([
+            getMyFamily(),
+            getMyMemberProfile(),
+          ])
+          let members: FamilyMember[] = []
+          if (family) members = await getFamilyMembers(family.id)
+          set({ family, myProfile, members, isLoading: false })
 
-      // Best-effort: refresh push token on each app load and persist it
-      // to the member row so edge functions can send targeted notifications.
-      // Runs silently in the background — never blocks the UI.
-      if (myProfile) {
-        registerForPushNotifications()
-          .then((token) => {
-            if (token) {
-              supabase
-                .from('family_members')
-                .update({ push_token: token })
-                .eq('id', myProfile.id)
-                .then(() => {})  // fire-and-forget
-            }
-          })
-          .catch(() => {})  // permission denied — silently ignore
-      }
-    } catch (err) {
-      set({ error: String(err), isLoading: false })
+          if (myProfile) {
+            registerForPushNotifications()
+              .then((token) => {
+                if (token) {
+                  supabase
+                    .from('family_members')
+                    .update({ push_token: token })
+                    .eq('id', myProfile.id)
+                    .then(() => {})
+                }
+              })
+              .catch(() => {})
+          }
+        } catch (err) {
+          set({ error: String(err), isLoading: false })
+        }
+      },
+
+      refreshFamily: async () => {
+        const family = await getMyFamily()
+        set({ family })
+      },
+
+      isPro: () => get().family?.subscription_status === 'active',
+
+      reset: () => set({ family: null, members: [], myProfile: null, isHydrated: false }),
+    }),
+    {
+      name: 'medivault-family',
+      storage: createJSONStorage(() => AsyncStorage),
+      // Only persist the data, not loading/error states
+      partialize: (state) => ({
+        family: state.family,
+        members: state.members,
+        myProfile: state.myProfile,
+      }),
+      onRehydrateStorage: () => (state) => {
+        state?.setHydrated()
+      },
     }
-  },
-
-  // Re-fetches just the family row — used after Razorpay checkout to pick up
-  // the updated subscription_status without a full page reload.
-  refreshFamily: async () => {
-    const family = await getMyFamily()
-    set({ family })
-  },
-
-  isPro: () => get().family?.subscription_status === 'active',
-
-  // Called on sign-out — clears all user data from memory so the
-  // next person who logs in on this device starts with a clean slate.
-  reset: () => set({ family: null, members: [], myProfile: null }),
-}))
+  )
+)

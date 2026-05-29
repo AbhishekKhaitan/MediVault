@@ -1,117 +1,82 @@
 import {
-  View,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  ScrollView,
-  KeyboardAvoidingView,
-  Platform,
-  ActivityIndicator,
-  Alert,
+  View, Text, TextInput, TouchableOpacity, ScrollView,
+  KeyboardAvoidingView, Platform, ActivityIndicator, Alert,
 } from 'react-native'
 import { useState } from 'react'
 import { useRouter } from 'expo-router'
+import { SafeAreaView } from 'react-native-safe-area-context'
 import { supabase } from '../../lib/supabase'
 import { registerFamilyAndFirstMember } from '../../lib/api'
 import { registerForPushNotifications } from '../../lib/notifications'
+import { C } from '../../constants/theme'
 import type { BloodGroup } from '../../types'
 
-// ─── Multi-step form: 3 pages ─────────────────────────────────────────────────
-// Page 1: Family name + user's name + relation
-// Page 2: Date of birth + blood group + phone number
-// Page 3: Known allergies (optional) + final confirmation
 type Page = 1 | 2 | 3
-
 const RELATIONS = ['Self', 'Spouse', 'Father', 'Mother', 'Son', 'Daughter', 'Sibling', 'Grandparent', 'Other']
 const BLOOD_GROUPS: BloodGroup[] = ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-']
 
+const INPUT_STYLE = {
+  backgroundColor: C.surface, borderRadius: 14, borderWidth: 1,
+  borderColor: C.border, paddingHorizontal: 16, height: 52,
+  color: C.text, fontSize: 15,
+}
+
 export default function RegisterScreen() {
   const router = useRouter()
-
-  // ─── Form state ─────────────────────────────────────────────────────────────
   const [page, setPage] = useState<Page>(1)
   const [loading, setLoading] = useState(false)
-
-  // Page 1
   const [familyName, setFamilyName] = useState('')
   const [memberName, setMemberName] = useState('')
-  const [relation, setRelation] = useState<string>('Self')
-
-  // Page 2
-  const [dob, setDob] = useState('')                        // 'DD/MM/YYYY'
+  const [relation, setRelation] = useState('Self')
+  const [dob, setDob] = useState('')
   const [bloodGroup, setBloodGroup] = useState<BloodGroup | null>(null)
   const [phone, setPhone] = useState('')
-
-  // Page 3
   const [allergyInput, setAllergyInput] = useState('')
   const [allergies, setAllergies] = useState<string[]>([])
 
-  // ─── Navigation between pages ────────────────────────────────────────────────
   const goNext = () => {
     if (page === 1) {
-      if (!familyName.trim()) { Alert.alert('Required', 'Please enter your family name.'); return }
-      if (!memberName.trim()) { Alert.alert('Required', 'Please enter your name.'); return }
+      if (!familyName.trim()) { Alert.alert('Required', 'Enter your family name.'); return }
+      if (!memberName.trim()) { Alert.alert('Required', 'Enter your name.'); return }
       setPage(2)
     } else if (page === 2) {
       setPage(3)
     }
   }
 
-  const goBack = () => {
-    if (page > 1) setPage((page - 1) as Page)
-  }
-
-  // ─── Date of birth formatting: auto-inserts slashes ─────────────────────────
   const handleDobChange = (text: string) => {
-    const digits = text.replace(/\D/g, '').slice(0, 8)
-    let formatted = digits
-    if (digits.length > 2) formatted = `${digits.slice(0, 2)}/${digits.slice(2)}`
-    if (digits.length > 4) formatted = `${digits.slice(0, 2)}/${digits.slice(2, 4)}/${digits.slice(4)}`
-    setDob(formatted)
+    const d = text.replace(/\D/g, '').slice(0, 8)
+    let f = d
+    if (d.length > 2) f = `${d.slice(0, 2)}/${d.slice(2)}`
+    if (d.length > 4) f = `${d.slice(0, 2)}/${d.slice(2, 4)}/${d.slice(4)}`
+    setDob(f)
   }
 
-  // Parse DD/MM/YYYY → YYYY-MM-DD for Supabase
-  const parseDob = (raw: string): string | null => {
-    const parts = raw.split('/')
-    if (parts.length !== 3 || parts[2].length !== 4) return null
-    return `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`
+  const parseDob = (raw: string) => {
+    const p = raw.split('/')
+    if (p.length !== 3 || p[2].length !== 4) return null
+    return `${p[2]}-${p[1].padStart(2, '0')}-${p[0].padStart(2, '0')}`
   }
 
-  // ─── Allergy chip management ─────────────────────────────────────────────────
   const addAllergy = () => {
-    const trimmed = allergyInput.trim()
-    if (trimmed && !allergies.includes(trimmed)) {
-      setAllergies([...allergies, trimmed])
-    }
+    const t = allergyInput.trim()
+    if (t && !allergies.includes(t)) setAllergies([...allergies, t])
     setAllergyInput('')
   }
 
-  const removeAllergy = (item: string) => {
-    setAllergies(allergies.filter((a) => a !== item))
-  }
-
-  // ─── Final submission ────────────────────────────────────────────────────────
   const handleSubmit = async () => {
     setLoading(true)
     try {
-      // Get push token — best effort, don't block registration if denied
       const pushToken = await registerForPushNotifications().catch(() => null)
-
-      // Get the user's phone from their auth session
       const { data: { user } } = await supabase.auth.getUser()
-      const authPhone = user?.phone ?? phone
-
       await registerFamilyAndFirstMember({
         familyName: familyName.trim(),
         memberName: memberName.trim(),
-        relation,
-        dateOfBirth: parseDob(dob),
-        bloodGroup,
-        knownAllergies: allergies,
-        phone: authPhone.replace('+91', ''),
+        relation, dateOfBirth: parseDob(dob),
+        bloodGroup, knownAllergies: allergies,
+        phone: (user?.phone ?? phone).replace('+91', ''),
         pushToken,
       })
-
       router.replace('/(app)/')
     } catch (err: unknown) {
       Alert.alert('Setup failed', err instanceof Error ? err.message : 'Please try again.')
@@ -120,259 +85,252 @@ export default function RegisterScreen() {
     }
   }
 
-  // ─── Shared components ────────────────────────────────────────────────────────
-  const SectionLabel = ({ text }: { text: string }) => (
-    <Text className="text-sm font-semibold text-slate-500 uppercase tracking-wide mb-2 mt-5">{text}</Text>
+  const Label = ({ text }: { text: string }) => (
+    <Text style={{ fontSize: 11, fontWeight: '700', color: C.textSub, textTransform: 'uppercase', letterSpacing: 1, marginTop: 20, marginBottom: 8 }}>
+      {text}
+    </Text>
   )
 
-  const StyledInput = ({
-    value, onChangeText, placeholder, keyboardType = 'default', maxLength,
-  }: {
-    value: string
-    onChangeText: (t: string) => void
-    placeholder: string
-    keyboardType?: 'default' | 'phone-pad' | 'number-pad'
-    maxLength?: number
-  }) => (
-    <TextInput
-      className="border border-slate-300 rounded-2xl px-4 h-14 text-slate-900 text-base"
-      placeholder={placeholder}
-      placeholderTextColor="#94A3B8"
-      value={value}
-      onChangeText={onChangeText}
-      keyboardType={keyboardType}
-      maxLength={maxLength}
-    />
-  )
-
-  // ─── Progress bar ─────────────────────────────────────────────────────────────
-  const ProgressBar = () => (
-    <View className="flex-row gap-2 mb-8">
-      {([1, 2, 3] as Page[]).map((p) => (
-        <View
-          key={p}
-          className={`flex-1 h-1 rounded-full ${p <= page ? 'bg-sky-500' : 'bg-slate-200'}`}
-        />
-      ))}
-    </View>
-  )
-
-  // ─── UI ───────────────────────────────────────────────────────────────────────
   return (
-    <KeyboardAvoidingView
-      className="flex-1 bg-white"
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-    >
-      <ScrollView
-        className="flex-1"
-        contentContainerStyle={{ paddingHorizontal: 24, paddingTop: 60, paddingBottom: 40 }}
-        keyboardShouldPersistTaps="handled"
-      >
-        {/* Header */}
-        <Text className="text-3xl font-bold text-slate-900 mb-1">Set up your family</Text>
-        <Text className="text-slate-500 mb-6">This takes 2 minutes. You can edit everything later.</Text>
+    <SafeAreaView style={{ flex: 1, backgroundColor: C.bg }}>
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+        <ScrollView
+          contentContainerStyle={{ paddingHorizontal: 24, paddingTop: 40, paddingBottom: 40 }}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+        >
+          <Text style={{ fontSize: 26, fontWeight: '800', color: C.text, letterSpacing: -0.3 }}>
+            Set up your family
+          </Text>
+          <Text style={{ color: C.textSub, marginTop: 4, marginBottom: 28, fontSize: 14 }}>
+            Takes 2 minutes. You can edit everything later.
+          </Text>
 
-        <ProgressBar />
+          {/* Progress bar */}
+          <View style={{ flexDirection: 'row', gap: 6, marginBottom: 32 }}>
+            {[1, 2, 3].map((p) => (
+              <View key={p} style={{
+                flex: 1, height: 3, borderRadius: 4,
+                backgroundColor: p <= page ? C.accent : C.border,
+              }} />
+            ))}
+          </View>
 
-        {/* ── Page 1: Names ── */}
-        {page === 1 && (
-          <View>
-            <SectionLabel text="Your family name" />
-            <StyledInput
-              value={familyName}
-              onChangeText={setFamilyName}
-              placeholder="e.g. The Sharma Family"
-            />
-            <Text className="text-xs text-slate-400 mt-1 ml-1">This is just a label — visible only to you.</Text>
+          {/* ── Page 1 ── */}
+          {page === 1 && (
+            <View>
+              <Label text="Family name" />
+              <TextInput
+                style={INPUT_STYLE}
+                placeholder="e.g. The Sharma Family"
+                placeholderTextColor={C.textMute}
+                value={familyName}
+                onChangeText={setFamilyName}
+              />
+              <Text style={{ fontSize: 12, color: C.textMute, marginTop: 4 }}>
+                A private label — visible only to you
+              </Text>
 
-            <SectionLabel text="Your full name" />
-            <StyledInput
-              value={memberName}
-              onChangeText={setMemberName}
-              placeholder="e.g. Rahul Sharma"
-            />
+              <Label text="Your full name" />
+              <TextInput
+                style={INPUT_STYLE}
+                placeholder="e.g. Rahul Sharma"
+                placeholderTextColor={C.textMute}
+                value={memberName}
+                onChangeText={setMemberName}
+              />
 
-            <SectionLabel text="Your relation in the family" />
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} className="mb-2">
-              <View className="flex-row gap-2 py-1">
-                {RELATIONS.map((r) => (
+              <Label text="Your relation" />
+              <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                <View style={{ flexDirection: 'row', gap: 8, paddingVertical: 4 }}>
+                  {RELATIONS.map((r) => (
+                    <TouchableOpacity
+                      key={r}
+                      onPress={() => setRelation(r)}
+                      style={{
+                        paddingHorizontal: 16, paddingVertical: 8, borderRadius: 20,
+                        backgroundColor: relation === r ? C.accent : C.surface,
+                        borderWidth: 1, borderColor: relation === r ? C.accent : C.border,
+                      }}
+                    >
+                      <Text style={{ fontSize: 13, fontWeight: '600', color: relation === r ? C.bg : C.textSub }}>
+                        {r}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </ScrollView>
+            </View>
+          )}
+
+          {/* ── Page 2 ── */}
+          {page === 2 && (
+            <View>
+              <Label text="Date of birth (optional)" />
+              <TextInput
+                style={INPUT_STYLE}
+                placeholder="DD/MM/YYYY"
+                placeholderTextColor={C.textMute}
+                keyboardType="number-pad"
+                maxLength={10}
+                value={dob}
+                onChangeText={handleDobChange}
+              />
+
+              <Label text="Blood group (optional)" />
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+                {BLOOD_GROUPS.map((bg) => (
                   <TouchableOpacity
-                    key={r}
-                    onPress={() => setRelation(r)}
-                    className={`px-4 py-2 rounded-full border ${
-                      relation === r
-                        ? 'bg-sky-500 border-sky-500'
-                        : 'bg-white border-slate-300'
-                    }`}
+                    key={bg}
+                    onPress={() => setBloodGroup(bloodGroup === bg ? null : bg)}
+                    style={{
+                      width: 64, height: 44, borderRadius: 10, borderWidth: 1,
+                      alignItems: 'center', justifyContent: 'center',
+                      backgroundColor: bloodGroup === bg ? C.danger : C.surface,
+                      borderColor: bloodGroup === bg ? C.danger : C.border,
+                    }}
                   >
-                    <Text className={`text-sm font-medium ${relation === r ? 'text-white' : 'text-slate-700'}`}>
-                      {r}
+                    <Text style={{ fontWeight: '700', fontSize: 13, color: bloodGroup === bg ? '#fff' : C.textSub }}>
+                      {bg}
                     </Text>
                   </TouchableOpacity>
                 ))}
               </View>
-            </ScrollView>
-          </View>
-        )}
+              <Text style={{ fontSize: 12, color: C.textMute, marginTop: 6 }}>
+                Shown prominently on your emergency card
+              </Text>
 
-        {/* ── Page 2: Health basics ── */}
-        {page === 2 && (
-          <View>
-            <SectionLabel text="Date of birth (optional)" />
-            <StyledInput
-              value={dob}
-              onChangeText={handleDobChange}
-              placeholder="DD/MM/YYYY"
-              keyboardType="number-pad"
-              maxLength={10}
-            />
-            <Text className="text-xs text-slate-400 mt-1 ml-1">
-              Used to calculate age on reports. Not stored publicly.
-            </Text>
+              <Label text="Phone number (optional)" />
+              <View style={{
+                ...INPUT_STYLE as any, flexDirection: 'row', alignItems: 'center', height: 52,
+              }}>
+                <Text style={{ color: C.textSub, fontSize: 14, marginRight: 8 }}>+91</Text>
+                <View style={{ width: 1, height: 18, backgroundColor: C.border, marginRight: 10 }} />
+                <TextInput
+                  style={{ flex: 1, color: C.text, fontSize: 15 }}
+                  placeholder="Used for emergency lookup"
+                  placeholderTextColor={C.textMute}
+                  keyboardType="phone-pad"
+                  maxLength={10}
+                  value={phone}
+                  onChangeText={(t) => setPhone(t.replace(/\D/g, '').slice(0, 10))}
+                />
+              </View>
+            </View>
+          )}
 
-            <SectionLabel text="Blood group (optional)" />
-            <View className="flex-row flex-wrap gap-2">
-              {BLOOD_GROUPS.map((bg) => (
+          {/* ── Page 3 ── */}
+          {page === 3 && (
+            <View>
+              <Label text="Known allergies (optional)" />
+              <Text style={{ color: C.textSub, fontSize: 13, marginBottom: 14, lineHeight: 20 }}>
+                Shown in red on your emergency card so doctors see them instantly.
+              </Text>
+
+              {allergies.length > 0 && (
+                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 14 }}>
+                  {allergies.map((a) => (
+                    <TouchableOpacity
+                      key={a}
+                      onPress={() => setAllergies(allergies.filter((x) => x !== a))}
+                      style={{
+                        flexDirection: 'row', alignItems: 'center', gap: 6,
+                        backgroundColor: C.dangerBg, borderWidth: 1, borderColor: C.danger,
+                        borderRadius: 20, paddingHorizontal: 12, paddingVertical: 6,
+                      }}
+                    >
+                      <Text style={{ color: C.danger, fontSize: 13, fontWeight: '600' }}>{a}</Text>
+                      <Text style={{ color: C.danger, fontSize: 11 }}>✕</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              )}
+
+              <View style={{ flexDirection: 'row', gap: 8 }}>
+                <TextInput
+                  style={{ ...INPUT_STYLE as any, flex: 1, height: 48 }}
+                  placeholder="e.g. Penicillin, Peanuts"
+                  placeholderTextColor={C.textMute}
+                  value={allergyInput}
+                  onChangeText={setAllergyInput}
+                  onSubmitEditing={addAllergy}
+                  returnKeyType="done"
+                />
                 <TouchableOpacity
-                  key={bg}
-                  onPress={() => setBloodGroup(bloodGroup === bg ? null : bg)}
-                  className={`w-16 h-12 rounded-xl border items-center justify-center ${
-                    bloodGroup === bg
-                      ? 'bg-red-500 border-red-500'
-                      : 'bg-white border-slate-300'
-                  }`}
+                  onPress={addAllergy}
+                  style={{
+                    width: 48, height: 48, backgroundColor: C.surface,
+                    borderRadius: 12, alignItems: 'center', justifyContent: 'center',
+                    borderWidth: 1, borderColor: C.border,
+                  }}
                 >
-                  <Text className={`font-bold text-sm ${bloodGroup === bg ? 'text-white' : 'text-slate-700'}`}>
-                    {bg}
-                  </Text>
+                  <Text style={{ color: C.accent, fontSize: 22, fontWeight: '300' }}>+</Text>
                 </TouchableOpacity>
-              ))}
-            </View>
-            <Text className="text-xs text-slate-400 mt-2 ml-1">
-              Shown prominently on your emergency card.
-            </Text>
+              </View>
 
-            <SectionLabel text="Phone number (optional)" />
-            <View className="flex-row items-center border border-slate-300 rounded-2xl px-4 h-14">
-              <Text className="text-slate-500 text-base mr-2">+91</Text>
-              <View className="w-px h-6 bg-slate-200 mr-3" />
-              <TextInput
-                className="flex-1 text-slate-900 text-base"
-                placeholder="Used for emergency lookup"
-                placeholderTextColor="#94A3B8"
-                keyboardType="phone-pad"
-                maxLength={10}
-                value={phone}
-                onChangeText={(t) => setPhone(t.replace(/\D/g, '').slice(0, 10))}
-              />
-            </View>
-            <Text className="text-xs text-slate-400 mt-1 ml-1">
-              Allows receptionists to pull your emergency profile by phone number.
-            </Text>
-          </View>
-        )}
-
-        {/* ── Page 3: Allergies ── */}
-        {page === 3 && (
-          <View>
-            <SectionLabel text="Known allergies (optional)" />
-            <Text className="text-slate-500 text-sm mb-4">
-              These are shown in red on your emergency card so doctors can see them instantly.
-            </Text>
-
-            {/* Allergy chips */}
-            {allergies.length > 0 && (
-              <View className="flex-row flex-wrap gap-2 mb-4">
-                {allergies.map((a) => (
-                  <TouchableOpacity
-                    key={a}
-                    onPress={() => removeAllergy(a)}
-                    className="flex-row items-center bg-red-50 border border-red-200 rounded-full px-3 py-1 gap-1"
-                  >
-                    <Text className="text-red-600 text-sm font-medium">{a}</Text>
-                    <Text className="text-red-400 text-xs">✕</Text>
-                  </TouchableOpacity>
+              {/* Summary */}
+              <View style={{
+                marginTop: 28, backgroundColor: C.surface, borderRadius: 16,
+                padding: 18, borderWidth: 1, borderColor: C.border,
+              }}>
+                <Text style={{ fontWeight: '700', color: C.text, marginBottom: 12, fontSize: 15 }}>
+                  Ready to go 🎉
+                </Text>
+                {[
+                  ['Family', familyName],
+                  ['Name', `${memberName} (${relation})`],
+                  bloodGroup ? ['Blood', bloodGroup] : null,
+                  allergies.length ? ['Allergies', allergies.join(', ')] : null,
+                ].filter(Boolean).map(([k, v]) => (
+                  <Text key={k} style={{ color: C.textSub, fontSize: 13, marginBottom: 4 }}>
+                    <Text style={{ fontWeight: '600', color: C.text }}>{k}: </Text>{v}
+                  </Text>
                 ))}
               </View>
-            )}
+            </View>
+          )}
 
-            {/* Add allergy input */}
-            <View className="flex-row gap-2">
-              <TextInput
-                className="flex-1 border border-slate-300 rounded-2xl px-4 h-12 text-slate-900"
-                placeholder="e.g. Penicillin, Peanuts, Sulfa"
-                placeholderTextColor="#94A3B8"
-                value={allergyInput}
-                onChangeText={setAllergyInput}
-                onSubmitEditing={addAllergy}
-                returnKeyType="done"
-              />
+          {/* Navigation buttons */}
+          <View style={{ flexDirection: 'row', gap: 12, marginTop: 32 }}>
+            {page > 1 && (
               <TouchableOpacity
-                onPress={addAllergy}
-                className="w-12 h-12 bg-slate-100 rounded-2xl items-center justify-center"
+                onPress={() => setPage((page - 1) as Page)}
+                style={{
+                  flex: 1, height: 52, borderRadius: 14, borderWidth: 1,
+                  borderColor: C.border, alignItems: 'center', justifyContent: 'center',
+                }}
               >
-                <Text className="text-slate-700 text-xl font-light">+</Text>
+                <Text style={{ color: C.textSub, fontWeight: '600' }}>Back</Text>
               </TouchableOpacity>
-            </View>
-
-            {/* Summary card */}
-            <View className="mt-8 bg-slate-50 rounded-2xl p-5 border border-slate-200">
-              <Text className="font-bold text-slate-900 mb-3">Ready to go 🎉</Text>
-              <View className="gap-1">
-                <Text className="text-slate-600 text-sm">
-                  <Text className="font-medium">Family: </Text>{familyName}
-                </Text>
-                <Text className="text-slate-600 text-sm">
-                  <Text className="font-medium">Name: </Text>{memberName} ({relation})
-                </Text>
-                {bloodGroup && (
-                  <Text className="text-slate-600 text-sm">
-                    <Text className="font-medium">Blood group: </Text>{bloodGroup}
-                  </Text>
-                )}
-                {allergies.length > 0 && (
-                  <Text className="text-red-600 text-sm">
-                    <Text className="font-medium">Allergies: </Text>{allergies.join(', ')}
-                  </Text>
-                )}
-              </View>
-            </View>
+            )}
+            {page < 3 ? (
+              <TouchableOpacity
+                onPress={goNext}
+                style={{
+                  flex: 1, height: 52, borderRadius: 14,
+                  backgroundColor: C.accent, alignItems: 'center', justifyContent: 'center',
+                }}
+              >
+                <Text style={{ color: C.bg, fontWeight: '700', fontSize: 15 }}>Continue</Text>
+              </TouchableOpacity>
+            ) : (
+              <TouchableOpacity
+                onPress={handleSubmit}
+                disabled={loading}
+                style={{
+                  flex: 1, height: 52, borderRadius: 14,
+                  backgroundColor: C.accent, alignItems: 'center', justifyContent: 'center',
+                }}
+              >
+                {loading
+                  ? <ActivityIndicator color={C.bg} />
+                  : <Text style={{ color: C.bg, fontWeight: '700', fontSize: 15 }}>Create my family</Text>
+                }
+              </TouchableOpacity>
+            )}
           </View>
-        )}
-
-        {/* ── Navigation buttons ── */}
-        <View className="flex-row gap-3 mt-8">
-          {page > 1 && (
-            <TouchableOpacity
-              onPress={goBack}
-              className="flex-1 h-14 rounded-2xl border border-slate-300 items-center justify-center"
-            >
-              <Text className="text-slate-700 font-semibold">Back</Text>
-            </TouchableOpacity>
-          )}
-
-          {page < 3 ? (
-            <TouchableOpacity
-              onPress={goNext}
-              className="flex-1 h-14 rounded-2xl bg-sky-500 items-center justify-center"
-            >
-              <Text className="text-white font-semibold">Continue</Text>
-            </TouchableOpacity>
-          ) : (
-            <TouchableOpacity
-              onPress={handleSubmit}
-              disabled={loading}
-              className="flex-1 h-14 rounded-2xl bg-sky-500 items-center justify-center"
-            >
-              {loading
-                ? <ActivityIndicator color="#fff" />
-                : <Text className="text-white font-semibold text-base">Create my family</Text>
-              }
-            </TouchableOpacity>
-          )}
-        </View>
-
-      </ScrollView>
-    </KeyboardAvoidingView>
+        </ScrollView>
+      </KeyboardAvoidingView>
+    </SafeAreaView>
   )
 }

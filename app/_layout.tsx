@@ -1,36 +1,36 @@
 import '../global.css'
 import { Stack, useRouter, useSegments } from 'expo-router'
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import { View, ActivityIndicator } from 'react-native'
 import { supabase } from '../lib/supabase'
 import { userHasFamily } from '../lib/api'
+import { C } from '../constants/theme'
 import type { Session } from '@supabase/supabase-js'
 
 export default function RootLayout() {
   const router = useRouter()
   const segments = useSegments()
-
-  // Prevent the guard from firing before the router is mounted
   const isMounted = useRef(false)
+  // Track whether we've already handled the initial navigation so
+  // token-refresh events don't trigger another DB call + redirect
+  const hasNavigated = useRef(false)
+  const [ready, setReady] = useState(false)
+
   useEffect(() => { isMounted.current = true }, [])
 
-  // ─── Auth guard ─────────────────────────────────────────────────────────────
-  // Runs on every auth state change:
-  //   • App launch      → checks stored session in AsyncStorage
-  //   • OTP verified    → session created
-  //   • Sign out        → session destroyed
-  //   • Token refreshed → session updated (no redirect needed)
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (_event, session) => {
+      async (event, session) => {
         if (!isMounted.current) return
+        // TOKEN_REFRESHED fires on every silent refresh — don't re-route
+        if (event === 'TOKEN_REFRESHED') return
         await handleAuthChange(session)
       }
     )
 
-    // Also check the existing session immediately on mount
-    // (covers the case where the app is reopened with a stored session)
+    // Check the stored session once on mount
     supabase.auth.getSession().then(({ data: { session } }) => {
-      if (isMounted.current) handleAuthChange(session)
+      if (isMounted.current) handleAuthChange(session).finally(() => setReady(true))
     })
 
     return () => subscription.unsubscribe()
@@ -40,37 +40,38 @@ export default function RootLayout() {
     const currentGroup = segments[0] as string | undefined
 
     if (!session) {
-      // No session → send to login (unless already there)
-      if (currentGroup !== '(auth)') {
-        router.replace('/(auth)/login')
-      }
+      hasNavigated.current = false
+      if (currentGroup !== '(auth)') router.replace('/(auth)/login')
       return
     }
 
-    // Has a valid session — check if they've set up their family yet
+    // Skip redundant re-routing if we're already in the app
+    if (hasNavigated.current && currentGroup === '(app)') return
+
     const hasFamily = await userHasFamily()
+    hasNavigated.current = true
 
     if (!hasFamily) {
-      // Brand new user — force them through the family setup screen
-      if (currentGroup !== '(auth)') {
-        router.replace('/(auth)/register')
-      }
+      if (currentGroup !== '(auth)') router.replace('/(auth)/register')
     } else {
-      // Returning user — send to the main app (unless already there)
-      if (currentGroup !== '(app)') {
-        router.replace('/(app)/')
-      }
+      if (currentGroup !== '(app)') router.replace('/(app)/')
     }
   }
 
+  // Dark splash while the initial session check runs
+  if (!ready) {
+    return (
+      <View style={{ flex: 1, backgroundColor: C.bg, alignItems: 'center', justifyContent: 'center' }}>
+        <ActivityIndicator size="large" color={C.accent} />
+      </View>
+    )
+  }
+
   return (
-    <Stack screenOptions={{ headerShown: false, animation: 'fade' }}>
+    <Stack screenOptions={{ headerShown: false, animation: 'fade', contentStyle: { backgroundColor: C.bg } }}>
       <Stack.Screen name="(auth)" />
       <Stack.Screen name="(app)" />
-      <Stack.Screen
-        name="emergency-access/[phone]"
-        options={{ animation: 'none' }}
-      />
+      <Stack.Screen name="emergency-access/[phone]" options={{ animation: 'none' }} />
     </Stack>
   )
 }

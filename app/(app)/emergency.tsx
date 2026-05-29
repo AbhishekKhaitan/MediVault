@@ -1,29 +1,22 @@
 import {
-  View,
-  Text,
-  ScrollView,
-  TouchableOpacity,
-  Share,
-  ActivityIndicator,
+  View, Text, ScrollView, TouchableOpacity, Share, ActivityIndicator,
 } from 'react-native'
 import { useEffect, useState } from 'react'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
 import { useFamilyStore } from '../../stores/familyStore'
-import { useMedicationStore } from '../../stores/medicationStore'
 import { getActiveMedications } from '../../lib/api'
+import { C } from '../../constants/theme'
 import type { Medication } from '../../types'
 
 export default function EmergencyScreen() {
   const { myProfile } = useFamilyStore()
-  const [activeMeds, setActiveMeds] = useState<Medication[]>([])
+  const [meds, setMeds] = useState<Medication[]>([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     if (myProfile?.id) {
-      getActiveMedications(myProfile.id)
-        .then(setActiveMeds)
-        .finally(() => setLoading(false))
+      getActiveMedications(myProfile.id).then(setMeds).finally(() => setLoading(false))
     } else {
       setLoading(false)
     }
@@ -33,123 +26,119 @@ export default function EmergencyScreen() {
     if (!myProfile?.phone) return
     const phone = myProfile.phone.replace(/\D/g, '')
     const url = `https://medivault.in/e/${phone}`
-    await Share.share({
-      message: `My emergency medical profile: ${url}`,
-      url,
-    })
+    await Share.share({ message: `My emergency medical profile: ${url}`, url })
   }
 
   if (loading) {
     return (
-      <SafeAreaView className="flex-1 bg-white items-center justify-center">
-        <ActivityIndicator color="#EF4444" size="large" />
+      <SafeAreaView style={{ flex: 1, backgroundColor: C.bg, alignItems: 'center', justifyContent: 'center' }}>
+        <ActivityIndicator color={C.danger} size="large" />
       </SafeAreaView>
     )
   }
 
   return (
-    // Full-screen white — no navigation chrome, maximum readability in emergencies
-    <SafeAreaView className="flex-1 bg-white" edges={['top', 'bottom']}>
-      <ScrollView className="flex-1" contentContainerStyle={{ padding: 24 }}>
+    // White background for maximum readability in real emergencies
+    <SafeAreaView style={{ flex: 1, backgroundColor: '#FFFFFF' }} edges={['top', 'bottom']}>
+      <ScrollView contentContainerStyle={{ padding: 24 }}>
 
-        {/* ── Header ── */}
-        <View className="flex-row items-center gap-3 mb-8">
-          <View className="w-12 h-12 bg-red-100 rounded-full items-center justify-center">
-            <Ionicons name="medkit" size={24} color="#EF4444" />
+        {/* Header */}
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14, marginBottom: 24 }}>
+          <View style={{ width: 48, height: 48, borderRadius: 24, backgroundColor: '#FEE2E2', alignItems: 'center', justifyContent: 'center' }}>
+            <Ionicons name="medkit" size={22} color="#EF4444" />
           </View>
           <View>
-            <Text className="text-xs text-red-400 font-semibold uppercase tracking-widest">Emergency Card</Text>
-            <Text className="text-2xl font-bold text-slate-900">
+            <Text style={{ fontSize: 10, color: '#EF4444', fontWeight: '800', textTransform: 'uppercase', letterSpacing: 2 }}>
+              Emergency Card
+            </Text>
+            <Text style={{ fontSize: 22, fontWeight: '800', color: '#0A0B14' }}>
               {myProfile?.name ?? 'Unknown'}
             </Text>
           </View>
         </View>
 
-        {/* ── Blood group — shown HUGE ── */}
-        <View className="bg-red-50 border-2 border-red-200 rounded-3xl p-6 mb-5 items-center">
-          <Text className="text-red-400 text-sm font-semibold uppercase tracking-widest mb-1">Blood Group</Text>
+        {/* Blood group — HUGE */}
+        <View style={{
+          backgroundColor: '#FEF2F2', borderWidth: 2, borderColor: '#FECACA',
+          borderRadius: 20, padding: 24, marginBottom: 16, alignItems: 'center',
+        }}>
+          <Text style={{ fontSize: 10, color: '#EF4444', fontWeight: '800', textTransform: 'uppercase', letterSpacing: 2, marginBottom: 4 }}>
+            Blood Group
+          </Text>
           {myProfile?.blood_group ? (
-            <Text className="text-red-600 font-black" style={{ fontSize: 64, lineHeight: 72 }}>
+            <Text style={{ fontSize: 72, fontWeight: '900', color: '#EF4444', lineHeight: 80 }}>
               {myProfile.blood_group}
             </Text>
           ) : (
-            <Text className="text-red-300 text-2xl font-semibold">Not set</Text>
+            <Text style={{ fontSize: 22, fontWeight: '600', color: '#FCA5A5' }}>Not set</Text>
           )}
         </View>
 
-        {/* ── Allergies — red text, hard to miss ── */}
-        <View className="bg-white border-2 border-red-200 rounded-2xl p-5 mb-5">
-          <View className="flex-row items-center gap-2 mb-3">
+        {/* Allergies */}
+        <View style={{ backgroundColor: '#FFF', borderWidth: 2, borderColor: '#FECACA', borderRadius: 16, padding: 18, marginBottom: 16 }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12 }}>
             <Ionicons name="warning" size={18} color="#EF4444" />
-            <Text className="text-red-500 font-bold text-base">Allergies</Text>
+            <Text style={{ fontWeight: '800', fontSize: 15, color: '#DC2626' }}>Allergies</Text>
           </View>
           {(myProfile?.known_allergies ?? []).length > 0 ? (
-            <View className="flex-row flex-wrap gap-2">
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
               {myProfile!.known_allergies.map((a) => (
-                <View key={a} className="bg-red-100 border border-red-300 rounded-full px-3 py-1">
-                  <Text className="text-red-700 font-semibold text-sm">{a}</Text>
+                <View key={a} style={{ backgroundColor: '#FEE2E2', borderWidth: 1, borderColor: '#FCA5A5', borderRadius: 20, paddingHorizontal: 12, paddingVertical: 5 }}>
+                  <Text style={{ color: '#B91C1C', fontWeight: '700', fontSize: 13 }}>{a}</Text>
                 </View>
               ))}
             </View>
           ) : (
-            <Text className="text-slate-400">No known allergies</Text>
+            <Text style={{ color: '#94A3B8', fontSize: 14 }}>No known allergies</Text>
           )}
         </View>
 
-        {/* ── Active medications ── */}
-        <View className="bg-white border border-slate-200 rounded-2xl p-5 mb-5">
-          <View className="flex-row items-center gap-2 mb-3">
-            <Ionicons name="medical" size={18} color="#0EA5E9" />
-            <Text className="text-slate-900 font-bold text-base">Current Medications</Text>
+        {/* Current medications */}
+        <View style={{ backgroundColor: '#FFF', borderWidth: 1, borderColor: '#E2E8F0', borderRadius: 16, padding: 18, marginBottom: 16 }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+            <Ionicons name="medical" size={18} color="#3B82F6" />
+            <Text style={{ fontWeight: '800', fontSize: 15, color: '#1E293B' }}>Current Medications</Text>
           </View>
-          {activeMeds.length > 0 ? (
-            activeMeds.map((med, i) => (
-              <View key={med.id} className={`flex-row items-start py-2 ${i > 0 ? 'border-t border-slate-100' : ''}`}>
-                <View className="w-2 h-2 rounded-full bg-sky-400 mt-1.5 mr-3" />
-                <View className="flex-1">
-                  <Text className="text-slate-900 font-semibold">{med.name}</Text>
-                  <Text className="text-slate-500 text-sm">{med.dosage} · {med.frequency}</Text>
-                </View>
+          {meds.length > 0 ? meds.map((med, i) => (
+            <View key={med.id} style={{ flexDirection: 'row', alignItems: 'flex-start', paddingVertical: 8, borderTopWidth: i > 0 ? 1 : 0, borderTopColor: '#F1F5F9' }}>
+              <View style={{ width: 7, height: 7, borderRadius: 4, backgroundColor: '#60A5FA', marginTop: 5, marginRight: 10 }} />
+              <View style={{ flex: 1 }}>
+                <Text style={{ fontWeight: '700', color: '#1E293B', fontSize: 14 }}>{med.name}</Text>
+                <Text style={{ color: '#64748B', fontSize: 13 }}>{med.dosage} · {med.frequency}</Text>
               </View>
-            ))
-          ) : (
-            <Text className="text-slate-400">No active medications</Text>
+            </View>
+          )) : (
+            <Text style={{ color: '#94A3B8', fontSize: 14 }}>No active medications</Text>
           )}
         </View>
 
-        {/* ── Share button ── */}
+        {/* Share button */}
         {myProfile?.phone && (
           <TouchableOpacity
             onPress={handleShare}
-            className="flex-row items-center justify-center gap-3 bg-slate-900 rounded-2xl py-4 mb-4"
+            style={{
+              flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10,
+              backgroundColor: '#1E293B', borderRadius: 16, paddingVertical: 16, marginBottom: 12,
+            }}
           >
-            <Ionicons name="share-outline" size={20} color="#fff" />
-            <Text className="text-white font-semibold text-base">Share Emergency Link</Text>
+            <Ionicons name="share-outline" size={20} color="#FFF" />
+            <Text style={{ color: '#FFF', fontWeight: '700', fontSize: 15 }}>Share Emergency Link</Text>
           </TouchableOpacity>
         )}
 
-        {/* ── Phone link info ── */}
         {myProfile?.phone && (
-          <View className="bg-sky-50 border border-sky-100 rounded-2xl p-4 flex-row gap-3 mb-4">
-            <Ionicons name="link-outline" size={18} color="#0EA5E9" />
-            <View className="flex-1">
-              <Text className="text-sky-700 font-semibold text-sm">Emergency profile URL</Text>
-              <Text className="text-sky-500 text-xs mt-0.5 font-mono">
-                medivault.in/e/{myProfile.phone}
-              </Text>
-              <Text className="text-sky-400 text-xs mt-1">
-                Give your phone number to a receptionist — they can pull your full profile instantly.
-              </Text>
+          <View style={{ backgroundColor: '#EFF6FF', borderRadius: 14, padding: 14, flexDirection: 'row', gap: 10, marginBottom: 16 }}>
+            <Ionicons name="link-outline" size={16} color="#3B82F6" />
+            <View style={{ flex: 1 }}>
+              <Text style={{ color: '#1D4ED8', fontWeight: '700', fontSize: 13 }}>Emergency profile URL</Text>
+              <Text style={{ color: '#3B82F6', fontSize: 12, marginTop: 2 }}>medivault.in/e/{myProfile.phone}</Text>
             </View>
           </View>
         )}
 
-        {/* ── Opt-out notice ── */}
-        <Text className="text-slate-400 text-xs text-center">
-          Your emergency profile is visible only when someone types your phone number.{'\n'}
-          Turn off in Settings → Emergency Access.
+        <Text style={{ color: '#94A3B8', fontSize: 12, textAlign: 'center', lineHeight: 18 }}>
+          Visible only when someone types your phone number.
         </Text>
-
       </ScrollView>
     </SafeAreaView>
   )

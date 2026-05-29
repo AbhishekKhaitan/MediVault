@@ -1,12 +1,5 @@
 import {
-  View,
-  Text,
-  ScrollView,
-  TouchableOpacity,
-  RefreshControl,
-  ActivityIndicator,
-  Modal,
-  Pressable,
+  View, Text, ScrollView, TouchableOpacity, RefreshControl,
 } from 'react-native'
 import { useEffect, useState, useCallback } from 'react'
 import { useRouter } from 'expo-router'
@@ -17,6 +10,7 @@ import { useMedicationStore } from '../../stores/medicationStore'
 import { MemberAvatar } from '../../components/MemberAvatar'
 import { AddMemberSheet } from '../../components/AddMemberSheet'
 import { supabase } from '../../lib/supabase'
+import { C } from '../../constants/theme'
 import type { FamilyMember } from '../../types'
 
 export default function HomeScreen() {
@@ -28,227 +22,181 @@ export default function HomeScreen() {
   const [showAddMember, setShowAddMember] = useState(false)
   const [greeting, setGreeting] = useState('')
 
-  // ─── Greeting based on time of day ─────────────────────────────────────────
   useEffect(() => {
-    const hour = new Date().getHours()
-    if (hour < 12) setGreeting('Good morning')
-    else if (hour < 17) setGreeting('Good afternoon')
-    else setGreeting('Good evening')
+    const h = new Date().getHours()
+    setGreeting(h < 12 ? 'Good morning' : h < 17 ? 'Good afternoon' : 'Good evening')
   }, [])
 
-  // ─── Load data on mount ─────────────────────────────────────────────────────
-  useEffect(() => {
-    loadFamily()
-  }, [])
+  useEffect(() => { loadFamily() }, [])
+  useEffect(() => { members.forEach((m) => loadTodaysLogs(m.id)) }, [members])
 
-  // Load today's medication logs for each member
-  useEffect(() => {
-    members.forEach((m) => loadTodaysLogs(m.id))
-  }, [members])
-
-  // ─── Pull-to-refresh ────────────────────────────────────────────────────────
   const onRefresh = useCallback(async () => {
     setRefreshing(true)
     await loadFamily()
     setRefreshing(false)
   }, [])
 
-  // ─── Medication compliance indicator per member ─────────────────────────────
-  // Returns: 'all' | 'some' | 'none' | 'unknown'
-  const getComplianceStatus = (memberId: string): 'all' | 'some' | 'none' | 'unknown' => {
+  const compliance = (memberId: string): 'all' | 'some' | 'none' | 'unknown' => {
     const logs = todaysLogs[memberId] ?? []
-    if (logs.length === 0) return 'unknown'
+    if (!logs.length) return 'unknown'
     const taken = logs.filter((l) => l.taken).length
-    if (taken === logs.length) return 'all'
-    if (taken === 0) return 'none'
-    return 'some'
+    return taken === logs.length ? 'all' : taken === 0 ? 'none' : 'some'
   }
 
-  // ─── Sign out handler ────────────────────────────────────────────────────────
-  const handleSignOut = async () => {
-    await supabase.auth.signOut()
-  }
-
-  // ─── Loading state ───────────────────────────────────────────────────────────
-  if (isLoading && !family) {
-    return (
-      <SafeAreaView className="flex-1 bg-slate-50 items-center justify-center">
-        <ActivityIndicator size="large" color="#0EA5E9" />
-        <Text className="text-slate-500 mt-3">Loading your family...</Text>
-      </SafeAreaView>
-    )
-  }
+  const isPro = family?.subscription_status === 'active'
 
   return (
-    <SafeAreaView className="flex-1 bg-slate-50" edges={['top']}>
-
+    <SafeAreaView style={{ flex: 1, backgroundColor: C.bg }} edges={['top']}>
       <ScrollView
-        className="flex-1"
         showsVerticalScrollIndicator={false}
         refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
-            onRefresh={onRefresh}
-            tintColor="#0EA5E9"
-          />
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={C.accent} />
         }
       >
 
         {/* ── Header ── */}
-        <View className="flex-row items-center justify-between px-6 pt-4 pb-2">
+        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 24, paddingTop: 20, paddingBottom: 8 }}>
           <View>
-            <Text className="text-slate-400 text-sm">{greeting},</Text>
-            <Text className="text-2xl font-bold text-slate-900">
+            <Text style={{ color: C.textSub, fontSize: 13 }}>{greeting},</Text>
+            <Text style={{ fontSize: 26, fontWeight: '800', color: C.text, letterSpacing: -0.3 }}>
               {myProfile?.name.split(' ')[0] ?? 'there'} 👋
             </Text>
           </View>
           <TouchableOpacity
-            onPress={handleSignOut}
-            className="w-10 h-10 items-center justify-center rounded-full bg-white border border-slate-200"
+            onPress={() => supabase.auth.signOut()}
+            style={{
+              width: 40, height: 40, borderRadius: 20,
+              backgroundColor: C.surface, borderWidth: 1, borderColor: C.border,
+              alignItems: 'center', justifyContent: 'center',
+            }}
           >
-            <Ionicons name="log-out-outline" size={20} color="#64748B" />
+            <Ionicons name="log-out-outline" size={18} color={C.textSub} />
           </TouchableOpacity>
         </View>
 
-        {/* ── Family name pill ── */}
+        {/* ── Plan pill ── */}
         {family && (
-          <View className="mx-6 mb-6">
-            <View className="flex-row items-center gap-2">
-              <View className="bg-sky-50 border border-sky-100 rounded-full px-3 py-1 flex-row items-center gap-1">
-                <Ionicons name="people" size={13} color="#0EA5E9" />
-                <Text className="text-sky-600 text-xs font-medium">{family.name}</Text>
+          <View style={{ paddingHorizontal: 24, marginBottom: 24 }}>
+            <View style={{ flexDirection: 'row', gap: 8, alignItems: 'center' }}>
+              <View style={{
+                flexDirection: 'row', alignItems: 'center', gap: 5,
+                backgroundColor: C.surface, borderRadius: 20, borderWidth: 1, borderColor: C.border,
+                paddingHorizontal: 12, paddingVertical: 5,
+              }}>
+                <Ionicons name="people" size={12} color={C.accent} />
+                <Text style={{ color: C.accent, fontSize: 12, fontWeight: '600' }}>{family.name}</Text>
               </View>
-              {family.subscription_status === 'active' && (
-                <View className="bg-green-50 border border-green-100 rounded-full px-3 py-1">
-                  <Text className="text-green-600 text-xs font-medium">Family Plan ✓</Text>
+              {isPro ? (
+                <View style={{ backgroundColor: C.successBg, borderRadius: 20, borderWidth: 1, borderColor: C.success, paddingHorizontal: 10, paddingVertical: 5 }}>
+                  <Text style={{ color: C.success, fontSize: 11, fontWeight: '700' }}>Pro ✓</Text>
                 </View>
-              )}
-              {family.subscription_status === 'free' && (
+              ) : (
                 <TouchableOpacity
-                  onPress={() => router.push('/(app)/settings')}
-                  className="bg-amber-50 border border-amber-100 rounded-full px-3 py-1"
+                  onPress={() => router.push('/(app)/paywall')}
+                  style={{ backgroundColor: C.warningBg, borderRadius: 20, borderWidth: 1, borderColor: C.warning, paddingHorizontal: 10, paddingVertical: 5 }}
                 >
-                  <Text className="text-amber-600 text-xs font-medium">Free plan · Upgrade</Text>
+                  <Text style={{ color: C.warning, fontSize: 11, fontWeight: '700' }}>Free · Upgrade</Text>
                 </TouchableOpacity>
               )}
             </View>
           </View>
         )}
 
-        {/* ── Family members section ── */}
-        <View className="mb-6">
-          <View className="flex-row items-center justify-between px-6 mb-4">
-            <Text className="text-lg font-bold text-slate-900">Family Members</Text>
+        {/* ── Quick actions ── */}
+        <View style={{ paddingHorizontal: 24, marginBottom: 28 }}>
+          <Text style={{ fontSize: 13, fontWeight: '700', color: C.textSub, textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 14 }}>
+            Quick Actions
+          </Text>
+          <View style={{ flexDirection: 'row', gap: 10 }}>
+            <QACard icon="camera" label="Scan" color={C.accent} bg={C.accentBg} onPress={() => router.push('/(app)/upload')} />
+            <QACard icon="medkit" label="Emergency" color={C.danger} bg={C.dangerBg} onPress={() => router.push('/(app)/emergency')} />
+            <QACard icon="stats-chart" label="Trends" color={C.cyan} bg={C.cyanBg} onPress={() => members[0] && router.push(`/(app)/member/${members[0].id}`)} />
+          </View>
+        </View>
+
+        {/* ── Family members ── */}
+        <View style={{ marginBottom: 28 }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 24, marginBottom: 14 }}>
+            <Text style={{ fontSize: 13, fontWeight: '700', color: C.textSub, textTransform: 'uppercase', letterSpacing: 0.8 }}>
+              Family Members
+            </Text>
             {myProfile?.is_admin && (
               <TouchableOpacity
                 onPress={() => {
-                  if (family?.subscription_status !== 'active' && members.length >= 1) {
-                    router.push('/(app)/paywall')
-                  } else {
-                    setShowAddMember(true)
-                  }
+                  if (!isPro && members.length >= 1) router.push('/(app)/paywall')
+                  else setShowAddMember(true)
                 }}
-                className="flex-row items-center gap-1 bg-sky-500 rounded-full px-3 py-1.5"
+                style={{
+                  flexDirection: 'row', alignItems: 'center', gap: 4,
+                  backgroundColor: C.accentBg, borderRadius: 16,
+                  paddingHorizontal: 12, paddingVertical: 6,
+                  borderWidth: 1, borderColor: C.accent,
+                }}
               >
-                <Ionicons name="add" size={16} color="#fff" />
-                <Text className="text-white text-xs font-semibold">Add</Text>
+                <Ionicons name="add" size={14} color={C.accent} />
+                <Text style={{ color: C.accent, fontSize: 12, fontWeight: '700' }}>Add</Text>
               </TouchableOpacity>
             )}
           </View>
 
           {members.length === 0 ? (
-            /* ── Empty state ── */
-            <View className="mx-6 bg-white rounded-2xl border border-dashed border-slate-300 p-8 items-center">
-              <Ionicons name="people-outline" size={40} color="#CBD5E1" />
-              <Text className="text-slate-500 font-medium mt-3 text-center">No family members yet</Text>
-              <Text className="text-slate-400 text-sm text-center mt-1">
-                Tap "Add" to bring your family in
-              </Text>
+            <View style={{
+              marginHorizontal: 24, backgroundColor: C.surface, borderRadius: 16,
+              borderWidth: 1, borderColor: C.border, borderStyle: 'dashed',
+              padding: 32, alignItems: 'center',
+            }}>
+              <Ionicons name="people-outline" size={36} color={C.textMute} />
+              <Text style={{ color: C.textSub, fontWeight: '600', marginTop: 10 }}>No family members yet</Text>
+              <Text style={{ color: C.textMute, fontSize: 13, marginTop: 4 }}>Tap "Add" to bring your family in</Text>
             </View>
           ) : (
-            /* ── Avatar scroll grid ── */
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={{ paddingHorizontal: 24 }}
-            >
-              <View className="flex-row gap-4">
-                {members.map((member) => (
-                  <MemberAvatar
-                    key={member.id}
-                    member={member}
-                    complianceStatus={getComplianceStatus(member.id)}
-                    isMe={member.id === myProfile?.id}
-                  />
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 24 }}>
+              <View style={{ flexDirection: 'row', gap: 16 }}>
+                {members.map((m) => (
+                  <MemberAvatar key={m.id} member={m} complianceStatus={compliance(m.id)} isMe={m.id === myProfile?.id} />
                 ))}
               </View>
             </ScrollView>
           )}
         </View>
 
-        {/* ── Quick actions ── */}
-        <View className="px-6 mb-6">
-          <Text className="text-lg font-bold text-slate-900 mb-3">Quick Actions</Text>
-          <View className="flex-row gap-3">
-            <QuickActionCard
-              icon="camera"
-              label="Scan Report"
-              color="#0EA5E9"
-              bgColor="#F0F9FF"
-              onPress={() => router.push('/(app)/upload')}
-            />
-            <QuickActionCard
-              icon="medkit"
-              label="Emergency"
-              color="#EF4444"
-              bgColor="#FFF1F2"
-              onPress={() => router.push('/(app)/emergency')}
-            />
-            <QuickActionCard
-              icon="stats-chart"
-              label="Trends"
-              color="#8B5CF6"
-              bgColor="#F5F3FF"
-              onPress={() => members[0] && router.push(`/(app)/member/${members[0].id}`)}
-            />
-          </View>
-        </View>
-
-        {/* ── Today's medication summary ── */}
+        {/* ── Today's medications ── */}
         {members.some((m) => (todaysLogs[m.id] ?? []).length > 0) && (
-          <View className="px-6 mb-6">
-            <Text className="text-lg font-bold text-slate-900 mb-3">Today's Medications</Text>
-            <View className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
+          <View style={{ paddingHorizontal: 24, marginBottom: 28 }}>
+            <Text style={{ fontSize: 13, fontWeight: '700', color: C.textSub, textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 14 }}>
+              Today's Medications
+            </Text>
+            <View style={{ backgroundColor: C.surface, borderRadius: 16, borderWidth: 1, borderColor: C.border, overflow: 'hidden' }}>
               {members
                 .filter((m) => (todaysLogs[m.id] ?? []).length > 0)
-                .map((member, i, arr) => {
-                  const logs = todaysLogs[member.id] ?? []
+                .map((m, i, arr) => {
+                  const logs = todaysLogs[m.id] ?? []
                   const taken = logs.filter((l) => l.taken).length
-                  const total = logs.length
+                  const all = logs.length
+                  const color = taken === all ? C.success : taken === 0 ? C.danger : C.warning
                   return (
                     <TouchableOpacity
-                      key={member.id}
-                      onPress={() => router.push(`/(app)/member/${member.id}`)}
-                      className={`flex-row items-center px-4 py-3 ${
-                        i < arr.length - 1 ? 'border-b border-slate-100' : ''
-                      }`}
+                      key={m.id}
+                      onPress={() => router.push(`/(app)/member/${m.id}`)}
+                      style={{
+                        flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 14,
+                        borderBottomWidth: i < arr.length - 1 ? 1 : 0, borderBottomColor: C.border,
+                      }}
                     >
-                      <View className="w-8 h-8 rounded-full bg-sky-100 items-center justify-center mr-3">
-                        <Text className="text-sky-700 text-xs font-bold">
-                          {member.name.charAt(0).toUpperCase()}
+                      <View style={{
+                        width: 34, height: 34, borderRadius: 17,
+                        backgroundColor: C.accentBg, alignItems: 'center', justifyContent: 'center', marginRight: 12,
+                      }}>
+                        <Text style={{ color: C.accent, fontSize: 13, fontWeight: '800' }}>
+                          {m.name.charAt(0).toUpperCase()}
                         </Text>
                       </View>
-                      <Text className="flex-1 text-slate-800 font-medium">{member.name}</Text>
-                      <View className="flex-row items-center gap-1.5">
-                        <Text className={`text-sm font-semibold ${
-                          taken === total ? 'text-green-600' : taken === 0 ? 'text-red-500' : 'text-amber-500'
-                        }`}>
-                          {taken}/{total}
-                        </Text>
+                      <Text style={{ flex: 1, color: C.text, fontWeight: '600', fontSize: 14 }}>{m.name}</Text>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                        <Text style={{ fontSize: 13, fontWeight: '700', color }}>{taken}/{all}</Text>
                         <Ionicons
-                          name={taken === total ? 'checkmark-circle' : 'ellipse-outline'}
-                          size={16}
-                          color={taken === total ? '#22C55E' : taken === 0 ? '#EF4444' : '#F59E0B'}
+                          name={taken === all ? 'checkmark-circle' : 'ellipse-outline'}
+                          size={16} color={color}
                         />
                       </View>
                     </TouchableOpacity>
@@ -258,60 +206,51 @@ export default function HomeScreen() {
           </View>
         )}
 
-        {/* ── Bottom spacer for FAB ── */}
-        <View className="h-24" />
+        <View style={{ height: 100 }} />
       </ScrollView>
 
-      {/* ── Floating Action Button — Upload ── */}
+      {/* ── FAB ── */}
       <TouchableOpacity
         onPress={() => router.push('/(app)/upload')}
-        className="absolute bottom-6 right-6 w-16 h-16 bg-sky-500 rounded-full items-center justify-center shadow-lg"
-        style={{ elevation: 6 }}
+        style={{
+          position: 'absolute', bottom: 24, right: 24,
+          width: 58, height: 58, borderRadius: 29,
+          backgroundColor: C.accent, alignItems: 'center', justifyContent: 'center',
+          shadowColor: C.accent, shadowOffset: { width: 0, height: 4 },
+          shadowOpacity: 0.5, shadowRadius: 12, elevation: 8,
+        }}
       >
-        <Ionicons name="add" size={32} color="#fff" />
+        <Ionicons name="add" size={28} color={C.bg} />
       </TouchableOpacity>
 
-      {/* ── Add Member Sheet ── */}
       {family && (
         <AddMemberSheet
           visible={showAddMember}
           familyId={family.id}
           onClose={() => setShowAddMember(false)}
-          onAdded={() => {
-            setShowAddMember(false)
-            loadFamily()
-          }}
+          onAdded={() => { setShowAddMember(false); loadFamily() }}
         />
       )}
-
     </SafeAreaView>
   )
 }
 
-// ─── Quick Action Card ────────────────────────────────────────────────────────
-function QuickActionCard({
-  icon,
-  label,
-  color,
-  bgColor,
-  onPress,
-}: {
+function QACard({ icon, label, color, bg, onPress }: {
   icon: React.ComponentProps<typeof Ionicons>['name']
-  label: string
-  color: string
-  bgColor: string
-  onPress: () => void
+  label: string; color: string; bg: string; onPress: () => void
 }) {
   return (
     <TouchableOpacity
       onPress={onPress}
-      className="flex-1 rounded-2xl p-4 items-center"
-      style={{ backgroundColor: bgColor }}
+      activeOpacity={0.7}
+      style={{
+        flex: 1, borderRadius: 16, padding: 16,
+        backgroundColor: bg, alignItems: 'center',
+        borderWidth: 1, borderColor: color + '40',
+      }}
     >
-      <Ionicons name={icon} size={28} color={color} />
-      <Text className="text-xs font-semibold mt-2" style={{ color }}>
-        {label}
-      </Text>
+      <Ionicons name={icon} size={26} color={color} />
+      <Text style={{ fontSize: 12, fontWeight: '700', marginTop: 8, color }}>{label}</Text>
     </TouchableOpacity>
   )
 }

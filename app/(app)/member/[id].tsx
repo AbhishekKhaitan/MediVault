@@ -1,10 +1,5 @@
 import {
-  View,
-  Text,
-  ScrollView,
-  TouchableOpacity,
-  RefreshControl,
-  ActivityIndicator,
+  View, Text, ScrollView, TouchableOpacity, RefreshControl, ActivityIndicator,
 } from 'react-native'
 import { useEffect, useState, useCallback } from 'react'
 import { useLocalSearchParams, useRouter } from 'expo-router'
@@ -18,6 +13,7 @@ import { DocumentCard } from '../../../components/DocumentCard'
 import { TrendChart } from '../../../components/TrendChart'
 import { MedicationReminder } from '../../../components/MedicationReminder'
 import { AddMedicationSheet } from '../../../components/AddMedicationSheet'
+import { C } from '../../../constants/theme'
 import type { HealthMetric } from '../../../types'
 
 type Tab = 'timeline' | 'trends' | 'medications'
@@ -25,19 +21,9 @@ type Tab = 'timeline' | 'trends' | 'medications'
 export default function MemberProfileScreen() {
   const { id } = useLocalSearchParams<{ id: string }>()
   const router = useRouter()
-
   const { members, family, isPro } = useFamilyStore()
   const { documents, loadDocumentsForMember } = useDocumentStore()
-  const {
-    medications,
-    todaysLogs,
-    loadMedications,
-    loadTodaysLogs,
-    logMedication,
-    setReminderTimes,
-    addMedication,
-    removeMedication,
-  } = useMedicationStore()
+  const { medications, todaysLogs, loadMedications, loadTodaysLogs, logMedication, setReminderTimes, addMedication, removeMedication } = useMedicationStore()
 
   const [activeTab, setActiveTab] = useState<Tab>('timeline')
   const [metrics, setMetrics] = useState<Record<string, HealthMetric[]>>({})
@@ -49,14 +35,9 @@ export default function MemberProfileScreen() {
   const memberMeds = medications[id] ?? []
   const memberLogs = todaysLogs[id] ?? []
 
-  // ─── Load all data for this member ─────────────────────────────────────────
   const loadAll = useCallback(async () => {
     if (!id) return
-    await Promise.all([
-      loadDocumentsForMember(id),
-      loadMedications(id),
-      loadTodaysLogs(id),
-    ])
+    await Promise.all([loadDocumentsForMember(id), loadMedications(id), loadTodaysLogs(id)])
     const allMetrics = await getHealthMetricsForMember(id)
     const grouped: Record<string, HealthMetric[]> = {}
     for (const m of allMetrics) {
@@ -68,16 +49,12 @@ export default function MemberProfileScreen() {
 
   useEffect(() => { loadAll() }, [loadAll])
 
-  const onRefresh = useCallback(async () => {
-    setRefreshing(true)
-    await loadAll()
-    setRefreshing(false)
-  }, [loadAll])
+  const onRefresh = useCallback(async () => { setRefreshing(true); await loadAll(); setRefreshing(false) }, [loadAll])
 
   if (!member) {
     return (
-      <SafeAreaView className="flex-1 bg-slate-50 items-center justify-center">
-        <ActivityIndicator color="#0EA5E9" />
+      <SafeAreaView style={{ flex: 1, backgroundColor: C.bg, alignItems: 'center', justifyContent: 'center' }}>
+        <ActivityIndicator color={C.accent} />
       </SafeAreaView>
     )
   }
@@ -86,179 +63,139 @@ export default function MemberProfileScreen() {
     ? Math.floor((Date.now() - new Date(member.date_of_birth).getTime()) / (365.25 * 24 * 3600 * 1000))
     : null
 
-  return (
-    <SafeAreaView className="flex-1 bg-slate-50" edges={['top']}>
+  const TABS: Tab[] = ['timeline', 'trends', 'medications']
 
-      {/* ── Header ── */}
-      <View className="bg-white px-6 pt-4 pb-4 border-b border-slate-100">
-        <View className="flex-row items-center mb-4">
-          <TouchableOpacity
-            onPress={() => router.back()}
-            className="w-9 h-9 items-center justify-center rounded-full bg-slate-100 mr-3"
-          >
-            <Ionicons name="arrow-back" size={18} color="#475569" />
+  return (
+    <SafeAreaView style={{ flex: 1, backgroundColor: C.bg }} edges={['top']}>
+
+      {/* Header */}
+      <View style={{ backgroundColor: C.surface, paddingHorizontal: 20, paddingTop: 16, paddingBottom: 16, borderBottomWidth: 1, borderBottomColor: C.border }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 16 }}>
+          <TouchableOpacity onPress={() => router.back()} style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: C.card, alignItems: 'center', justifyContent: 'center', marginRight: 12 }}>
+            <Ionicons name="arrow-back" size={18} color={C.textSub} />
           </TouchableOpacity>
-          <Text className="text-xl font-bold text-slate-900 flex-1">{member.name}</Text>
+          <Text style={{ fontSize: 19, fontWeight: '800', color: C.text, flex: 1 }}>{member.name}</Text>
         </View>
 
-        <View className="flex-row items-center gap-4">
-          <View className="w-16 h-16 rounded-full bg-sky-100 items-center justify-center">
-            <Text className="text-sky-700 font-bold text-xl">
-              {member.name.slice(0, 2).toUpperCase()}
-            </Text>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14 }}>
+          <View style={{ width: 54, height: 54, borderRadius: 27, backgroundColor: C.accentBg, alignItems: 'center', justifyContent: 'center' }}>
+            <Text style={{ color: C.accent, fontWeight: '800', fontSize: 20 }}>{member.name.slice(0, 2).toUpperCase()}</Text>
           </View>
-          <View className="flex-1">
-            <View className="flex-row gap-2 flex-wrap">
-              <InfoChip label={member.relation} />
-              {member.blood_group && <InfoChip label={member.blood_group} danger />}
-              {age !== null && <InfoChip label={`${age} yrs`} />}
+          <View style={{ flex: 1 }}>
+            <View style={{ flexDirection: 'row', gap: 6, flexWrap: 'wrap' }}>
+              <Chip label={member.relation} />
+              {member.blood_group && <Chip label={member.blood_group} color={C.danger} bg={C.dangerBg} />}
+              {age !== null && <Chip label={`${age} yrs`} />}
             </View>
             {(member.known_allergies ?? []).length > 0 && (
-              <Text className="text-red-500 text-xs mt-1.5">
+              <Text style={{ color: C.danger, fontSize: 12, marginTop: 5 }}>
                 ⚠ Allergic to: {member.known_allergies.join(', ')}
               </Text>
             )}
           </View>
         </View>
 
-        <View className="flex-row mt-4 gap-3">
-          <StatCard value={memberDocs.length} label="Documents" />
-          <StatCard value={memberMeds.filter((m) => m.is_active).length} label="Active Meds" />
-          <StatCard value={Object.keys(metrics).length} label="Metrics tracked" />
+        {/* Stats row */}
+        <View style={{ flexDirection: 'row', gap: 8, marginTop: 14 }}>
+          <StatBox value={memberDocs.length} label="Documents" />
+          <StatBox value={memberMeds.filter((m) => m.is_active).length} label="Active Meds" />
+          <StatBox value={Object.keys(metrics).length} label="Metrics" />
         </View>
       </View>
 
-      {/* ── Tab bar ── */}
-      <View className="flex-row bg-white border-b border-slate-100">
-        {(['timeline', 'trends', 'medications'] as Tab[]).map((tab) => (
+      {/* Tab bar */}
+      <View style={{ flexDirection: 'row', backgroundColor: C.surface, borderBottomWidth: 1, borderBottomColor: C.border }}>
+        {TABS.map((tab) => (
           <TouchableOpacity
             key={tab}
             onPress={() => setActiveTab(tab)}
-            className={`flex-1 py-3 items-center border-b-2 ${
-              activeTab === tab ? 'border-sky-500' : 'border-transparent'
-            }`}
+            style={{
+              flex: 1, paddingVertical: 12, alignItems: 'center',
+              borderBottomWidth: 2,
+              borderBottomColor: activeTab === tab ? C.accent : 'transparent',
+            }}
           >
-            <Text className={`text-sm font-semibold capitalize ${
-              activeTab === tab ? 'text-sky-500' : 'text-slate-400'
-            }`}>
+            <Text style={{ fontSize: 13, fontWeight: '600', textTransform: 'capitalize', color: activeTab === tab ? C.accent : C.textSub }}>
               {tab}
             </Text>
           </TouchableOpacity>
         ))}
       </View>
 
-      {/* ── Tab content ── */}
+      {/* Content */}
       <ScrollView
-        className="flex-1"
+        style={{ flex: 1 }}
         contentContainerStyle={{ padding: 16 }}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#0EA5E9" />}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={C.accent} />}
       >
-        {/* ── Timeline tab ── */}
         {activeTab === 'timeline' && (
-          <View>
-            {memberDocs.length === 0 ? (
-              <EmptyState
-                icon="document-outline"
-                title="No documents yet"
-                subtitle="Upload a lab report or prescription to get started"
-                onAction={() => router.push('/(app)/upload')}
-                actionLabel="Upload first document"
-              />
-            ) : (
-              memberDocs.map((doc) => <DocumentCard key={doc.id} document={doc} />)
-            )}
-          </View>
+          memberDocs.length === 0
+            ? <Empty icon="document-outline" title="No documents yet" sub="Upload a lab report or prescription" action={() => router.push('/(app)/upload')} actionLabel="Upload first document" />
+            : memberDocs.map((doc) => <DocumentCard key={doc.id} document={doc} />)
         )}
 
-        {/* ── Trends tab ── */}
         {activeTab === 'trends' && (
-          <View>
-            {!isPro() ? (
-              <ProGate onUpgrade={() => router.push('/(app)/paywall')} />
-            ) : Object.keys(metrics).length === 0 ? (
-              <EmptyState
-                icon="stats-chart-outline"
-                title="No metrics yet"
-                subtitle="Upload a lab report and we'll track your values over time"
-              />
-            ) : (
-              Object.entries(metrics).map(([name, data]) => (
-                <TrendChart key={name} metricName={name} metrics={data} />
-              ))
-            )}
-          </View>
+          !isPro()
+            ? <ProGate onUpgrade={() => router.push('/(app)/paywall')} />
+            : Object.keys(metrics).length === 0
+              ? <Empty icon="stats-chart-outline" title="No metrics yet" sub="Upload a lab report to start tracking" />
+              : Object.entries(metrics).map(([name, data]) => <TrendChart key={name} metricName={name} metrics={data} />)
         )}
 
-        {/* ── Medications tab ── */}
         {activeTab === 'medications' && (
           <View>
-            {/* Add medication button */}
-            <TouchableOpacity
-              onPress={() => setShowAddMed(true)}
-              className="flex-row items-center justify-center gap-2 border border-dashed border-sky-300 bg-sky-50 rounded-xl py-3 mb-4"
-            >
-              <Ionicons name="add-circle-outline" size={18} color="#0EA5E9" />
-              <Text className="text-sky-600 font-semibold text-sm">Add Medication Manually</Text>
+            <TouchableOpacity onPress={() => setShowAddMed(true)} style={{
+              flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
+              borderWidth: 1, borderStyle: 'dashed', borderColor: C.accent + '60',
+              backgroundColor: C.accentBg, borderRadius: 12, paddingVertical: 12, marginBottom: 14,
+            }}>
+              <Ionicons name="add-circle-outline" size={16} color={C.accent} />
+              <Text style={{ color: C.accent, fontWeight: '700', fontSize: 13 }}>Add Medication Manually</Text>
             </TouchableOpacity>
 
-            {memberMeds.length === 0 ? (
-              <EmptyState
-                icon="medical-outline"
-                title="No medications"
-                subtitle="Upload a prescription or add one manually above"
-              />
-            ) : (
-              memberMeds.map((med) => {
-                const log = memberLogs.find((l) => l.medication_id === med.id)
-                return (
-                  <MedicationReminder
-                    key={med.id}
-                    medication={med}
-                    taken={log?.taken}
-                    onTaken={(taken) => logMedication(med.id, id!, taken)}
-                    onUpdateTimes={(times) =>
-                      setReminderTimes(med.id, id!, times, member.name)
-                    }
-                    onRemove={() => removeMedication(med.id, id!)}
-                  />
-                )
-              })
-            )}
+            {memberMeds.length === 0
+              ? <Empty icon="medical-outline" title="No medications" sub="Upload a prescription or add manually" />
+              : memberMeds.map((med) => {
+                  const log = memberLogs.find((l) => l.medication_id === med.id)
+                  return (
+                    <MedicationReminder
+                      key={med.id} medication={med} taken={log?.taken}
+                      onTaken={(taken) => logMedication(med.id, id!, taken)}
+                      onUpdateTimes={(times) => setReminderTimes(med.id, id!, times, member.name)}
+                      onRemove={() => removeMedication(med.id, id!)}
+                    />
+                  )
+                })
+            }
           </View>
         )}
+
+        <View style={{ height: 40 }} />
       </ScrollView>
 
-      {/* ── Add Medication Sheet ── */}
       {family && (
         <AddMedicationSheet
-          visible={showAddMed}
-          familyId={family.id}
-          memberId={id!}
-          onClose={() => setShowAddMed(false)}
-          onAdded={addMedication}
+          visible={showAddMed} familyId={family.id} memberId={id!}
+          onClose={() => setShowAddMed(false)} onAdded={addMedication}
         />
       )}
     </SafeAreaView>
   )
 }
 
-// ─── Small reusable sub-components ───────────────────────────────────────────
-
-function InfoChip({ label, danger }: { label: string; danger?: boolean }) {
+function Chip({ label, color, bg }: { label: string; color?: string; bg?: string }) {
   return (
-    <View className={`px-2.5 py-0.5 rounded-full ${danger ? 'bg-red-50' : 'bg-slate-100'}`}>
-      <Text className={`text-xs font-semibold ${danger ? 'text-red-600' : 'text-slate-600'}`}>
-        {label}
-      </Text>
+    <View style={{ paddingHorizontal: 10, paddingVertical: 3, borderRadius: 20, backgroundColor: bg ?? C.card, borderWidth: 1, borderColor: (color ?? C.textSub) + '40' }}>
+      <Text style={{ fontSize: 11, fontWeight: '700', color: color ?? C.textSub }}>{label}</Text>
     </View>
   )
 }
 
-function StatCard({ value, label }: { value: number; label: string }) {
+function StatBox({ value, label }: { value: number; label: string }) {
   return (
-    <View className="flex-1 bg-slate-50 rounded-xl p-3 items-center border border-slate-100">
-      <Text className="text-2xl font-bold text-slate-900">{value}</Text>
-      <Text className="text-xs text-slate-400 text-center mt-0.5">{label}</Text>
+    <View style={{ flex: 1, backgroundColor: C.card, borderRadius: 10, padding: 10, alignItems: 'center', borderWidth: 1, borderColor: C.border }}>
+      <Text style={{ fontSize: 22, fontWeight: '800', color: C.text }}>{value}</Text>
+      <Text style={{ fontSize: 10, color: C.textSub, marginTop: 1, textAlign: 'center' }}>{label}</Text>
     </View>
   )
 }
@@ -266,46 +203,34 @@ function StatCard({ value, label }: { value: number; label: string }) {
 function ProGate({ onUpgrade }: { onUpgrade: () => void }) {
   return (
     <View style={{ alignItems: 'center', paddingVertical: 48, paddingHorizontal: 32 }}>
-      <View style={{ width: 64, height: 64, borderRadius: 32, backgroundColor: '#F0F9FF', alignItems: 'center', justifyContent: 'center', marginBottom: 12 }}>
-        <Ionicons name="lock-closed" size={28} color="#0EA5E9" />
+      <View style={{ width: 64, height: 64, borderRadius: 32, backgroundColor: C.accentBg, alignItems: 'center', justifyContent: 'center', marginBottom: 14 }}>
+        <Ionicons name="lock-closed" size={28} color={C.accent} />
       </View>
-      <Text style={{ fontSize: 16, fontWeight: '700', color: '#0F172A', textAlign: 'center' }}>
-        Trend charts are a Family Plan feature
+      <Text style={{ fontSize: 16, fontWeight: '800', color: C.text, textAlign: 'center' }}>
+        Trend charts are a Pro feature
       </Text>
-      <Text style={{ fontSize: 13, color: '#64748B', textAlign: 'center', marginTop: 6, lineHeight: 20 }}>
-        Track blood sugar, haemoglobin, and more over time with a subscription.
+      <Text style={{ fontSize: 13, color: C.textSub, textAlign: 'center', marginTop: 6, lineHeight: 20 }}>
+        Track blood sugar, haemoglobin and more over time.
       </Text>
-      <TouchableOpacity
-        onPress={onUpgrade}
-        style={{ marginTop: 20, backgroundColor: '#0EA5E9', paddingHorizontal: 28, paddingVertical: 12, borderRadius: 24 }}
-      >
-        <Text style={{ color: '#fff', fontWeight: '700', fontSize: 14 }}>Upgrade · ₹49/mo</Text>
+      <TouchableOpacity onPress={onUpgrade} style={{ marginTop: 20, backgroundColor: C.accent, paddingHorizontal: 28, paddingVertical: 12, borderRadius: 24 }}>
+        <Text style={{ color: C.bg, fontWeight: '800', fontSize: 14 }}>Upgrade · ₹49/mo</Text>
       </TouchableOpacity>
     </View>
   )
 }
 
-function EmptyState({
-  icon,
-  title,
-  subtitle,
-  onAction,
-  actionLabel,
-}: {
+function Empty({ icon, title, sub, action, actionLabel }: {
   icon: React.ComponentProps<typeof Ionicons>['name']
-  title: string
-  subtitle: string
-  onAction?: () => void
-  actionLabel?: string
+  title: string; sub: string; action?: () => void; actionLabel?: string
 }) {
   return (
-    <View className="items-center py-16">
-      <Ionicons name={icon} size={48} color="#CBD5E1" />
-      <Text className="text-slate-600 font-semibold text-base mt-4">{title}</Text>
-      <Text className="text-slate-400 text-sm text-center mt-1 px-8">{subtitle}</Text>
-      {onAction && (
-        <TouchableOpacity onPress={onAction} className="mt-5 bg-sky-500 px-6 py-2.5 rounded-full">
-          <Text className="text-white font-semibold text-sm">{actionLabel}</Text>
+    <View style={{ alignItems: 'center', paddingVertical: 56 }}>
+      <Ionicons name={icon} size={44} color={C.textMute} />
+      <Text style={{ color: C.text, fontWeight: '700', fontSize: 15, marginTop: 14 }}>{title}</Text>
+      <Text style={{ color: C.textSub, fontSize: 13, textAlign: 'center', marginTop: 5, paddingHorizontal: 32, lineHeight: 20 }}>{sub}</Text>
+      {action && (
+        <TouchableOpacity onPress={action} style={{ marginTop: 18, backgroundColor: C.accent, paddingHorizontal: 24, paddingVertical: 10, borderRadius: 20 }}>
+          <Text style={{ color: C.bg, fontWeight: '700', fontSize: 13 }}>{actionLabel}</Text>
         </TouchableOpacity>
       )}
     </View>
