@@ -4,30 +4,56 @@ import { Platform } from 'react-native'
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import type { Medication } from '../types'
 
+// Reject a hanging promise after `ms` so push registration can never
+// block the UI (web has no push support and can hang indefinitely).
+function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
+  return Promise.race([
+    promise,
+    new Promise<T>((_, reject) =>
+      setTimeout(() => reject(new Error('push-timeout')), ms)
+    ),
+  ])
+}
+
 export async function registerForPushNotifications(): Promise<string | null> {
-  const { status: existingStatus } = await Notifications.getPermissionsAsync()
-  let finalStatus = existingStatus
+  // Push notifications aren't supported on web — bail out immediately so
+  // we never await a promise that will never resolve.
+  if (Platform.OS === 'web') return null
 
-  if (existingStatus !== 'granted') {
-    const { status } = await Notifications.requestPermissionsAsync()
-    finalStatus = status
-  }
+  try {
+    const { status: existingStatus } = await withTimeout(
+      Notifications.getPermissionsAsync(),
+      8000
+    )
+    let finalStatus = existingStatus
 
-  if (finalStatus !== 'granted') {
+    if (existingStatus !== 'granted') {
+      const { status } = await withTimeout(
+        Notifications.requestPermissionsAsync(),
+        20000
+      )
+      finalStatus = status
+    }
+
+    if (finalStatus !== 'granted') return null
+
+    const token = (
+      await withTimeout(Notifications.getExpoPushTokenAsync(), 8000)
+    ).data
+
+    if (Platform.OS === 'android') {
+      await Notifications.setNotificationChannelAsync('medications', {
+        name: 'Medication Reminders',
+        importance: Notifications.AndroidImportance.HIGH,
+        vibrationPattern: [0, 250, 250, 250],
+      }).catch(() => {})
+    }
+
+    return token
+  } catch {
+    // Permission denied, timed out, or no projectId — never block the caller
     return null
   }
-
-  const token = (await Notifications.getExpoPushTokenAsync()).data
-
-  if (Platform.OS === 'android') {
-    await Notifications.setNotificationChannelAsync('medications', {
-      name: 'Medication Reminders',
-      importance: Notifications.AndroidImportance.HIGH,
-      vibrationPattern: [0, 250, 250, 250],
-    })
-  }
-
-  return token
 }
 
 export async function scheduleMedicationReminder(
