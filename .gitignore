@@ -39,3 +39,5 @@ yarn-error.*
 # generated native folders
 /ios
 /android
+run-009*.js
+run-migrations.js
